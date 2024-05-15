@@ -1,0 +1,36 @@
+[
+    (
+        name: "test-b",
+        vers: "0.0.1",
+        deps: [
+            (
+                name: "wasmi",
+                package_name: "wasmi",
+            ),
+        ],
+    ),
+    (
+        name: "url",
+        vers: "0.0.1",
+    ),
+    (
+        name: "wasmi",
+        vers: "0.0.1",
+        deps: [
+            (
+                name: "wasmparser",
+                package_name: "wasmparser-nostd",
+            ),
+        ],
+    ),
+    (
+        name: "wasmparser",
+        vers: "0.0.1",
+        deps: [
+            (
+                name: "url",
+                package_name: "url",
+            ),
+        ],
+    ),
+]

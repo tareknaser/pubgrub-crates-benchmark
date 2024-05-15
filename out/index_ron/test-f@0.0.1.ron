@@ -1,0 +1,48 @@
+[
+    (
+        name: "proc-macro2",
+        vers: "1.0.78",
+        features: {
+            "proc-macro": [],
+        },
+    ),
+    (
+        name: "serde_derive",
+        vers: "1.0.196",
+        deps: [
+            (
+                name: "syn",
+                package_name: "syn",
+                features: [
+                    "proc-macro",
+                ],
+            ),
+        ],
+    ),
+    (
+        name: "syn",
+        vers: "2.0.48",
+        deps: [
+            (
+                name: "proc-macro2",
+                package_name: "proc-macro2",
+            ),
+        ],
+        features: {
+            "proc-macro": [
+                "proc-macro2/proc-macro",
+            ],
+        },
+    ),
+    (
+        name: "test-f",
+        vers: "0.0.1",
+        deps: [
+            (
+                name: "serde_derive",
+                package_name: "serde_derive",
+                req: "^1.0",
+            ),
+        ],
+    ),
+]
