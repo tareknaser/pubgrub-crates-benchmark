@@ -141,9 +141,24 @@ impl<'c> Index<'c> {
 
     #[must_use]
     fn check(&self, root: Arc<Names>, pubmap: &SelectedDependencies<Self>) -> bool {
-        if self.depth(root, pubmap).is_none() {
+        // Basic dependency resolution properties
+        if !pubmap.contains_key(&root) {
             return false;
         }
+        for (name, ver) in pubmap {
+            let Dependencies::Available(deps) = self.get_dependencies(name, ver).unwrap() else {
+                return false;
+            };
+            for (dep, req) in deps {
+                let Some(dep_ver) = pubmap.get(&dep) else {
+                    return false;
+                };
+                if !req.contains(dep_ver) {
+                    return false;
+                }
+            }
+        }
+
         let mut vertions: HashMap<
             (Arc<str>, SemverCompatibility),
             (semver::Version, BTreeSet<Arc<str>>),
@@ -222,35 +237,6 @@ impl<'c> Index<'c> {
             }
         }
         true
-    }
-
-    fn depth(&self, root: Arc<Names>, pubmap: &SelectedDependencies<Self>) -> Option<usize> {
-        let mut depths = HashMap::new();
-        let mut que: std::collections::VecDeque<_> = [(root, 0)].into();
-
-        while let Some((n, n_d)) = que.pop_front() {
-            if !pubmap.contains_key(&n) {
-                return None;
-            }
-            let Dependencies::Available(deps) = self.get_dependencies(&n, &pubmap[&n]).unwrap()
-            else {
-                return None;
-            };
-            for (dep, _) in deps {
-                let depth = n_d + (dep.is_real() as usize);
-                if depth > 99 {
-                    return Some(99);
-                }
-                let old = depths.entry(dep.clone()).or_default();
-                if &depth <= old {
-                    continue;
-                }
-                *old = depth;
-                que.push_back((dep, depth));
-            }
-        }
-
-        Some(*depths.values().max().unwrap_or(&0))
     }
 }
 
