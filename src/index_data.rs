@@ -4,6 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use cargo::util::interning::InternedString;
 
 fn is_default<D: Default + PartialEq>(t: &D) -> bool {
     t == &D::default()
@@ -11,14 +12,14 @@ fn is_default<D: Default + PartialEq>(t: &D) -> bool {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Dependency {
-    pub name: Arc<str>,
-    pub package_name: Arc<str>,
+    pub name: InternedString,
+    pub package_name: InternedString,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub req: Arc<semver::VersionReq>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: Vec<Arc<str>>,
+    pub features: Vec<InternedString>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub default_features: bool,
@@ -54,17 +55,17 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Version {
-    pub name: Arc<str>,
+    pub name: InternedString,
     pub vers: Arc<semver::Version>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub deps: Vec<Dependency>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: BTreeMap<Arc<str>, BTreeSet<Arc<str>>>,
+    pub features: BTreeMap<InternedString, BTreeSet<InternedString>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub links: Option<Arc<str>>,
+    pub links: Option<InternedString>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub yanked: bool,

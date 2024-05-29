@@ -11,6 +11,7 @@ use std::{
     time::Instant,
 };
 
+use cargo::util::interning::InternedString;
 use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
@@ -44,15 +45,15 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 
 #[derive(Clone)]
 struct Index<'c> {
-    crates: &'c HashMap<Arc<str>, BTreeMap<Arc<semver::Version>, index_data::Version>>,
-    dependencies: RefCell<HashSet<(Arc<Names>, semver::Version)>>,
+    crates: &'c HashMap<InternedString, BTreeMap<Arc<semver::Version>, index_data::Version>>,
+    dependencies: RefCell<HashSet<(Arc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
     call_count: Cell<u64>,
 }
 
 impl<'c> Index<'c> {
     pub fn new(
-        crates: &'c HashMap<Arc<str>, BTreeMap<Arc<semver::Version>, index_data::Version>>,
+        crates: &'c HashMap<InternedString, BTreeMap<Arc<semver::Version>, index_data::Version>>,
     ) -> Self {
         Self {
             crates,
@@ -118,7 +119,7 @@ impl<'c> Index<'c> {
 
         let out = name_vers
             .into_iter()
-            .map(|(n, version)| self.crates[n][version].clone())
+            .map(|(n, version)| self.crates[*n][version].clone())
             .collect_vec();
 
         let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
@@ -126,16 +127,22 @@ impl<'c> Index<'c> {
         ron::ser::to_writer_pretty(file, &out, PrettyConfig::new()).unwrap();
     }
 
-    fn get_crate(
-        &self,
-        name: impl Into<Arc<str>>,
-    ) -> &'c BTreeMap<Arc<semver::Version>, index_data::Version> {
-        let name = name.into();
+    fn get_crate<Q>(&self, name: &Q) -> &'c BTreeMap<Arc<semver::Version>, index_data::Version>
+    where
+        Q: ?Sized,
+        InternedString: std::borrow::Borrow<Q>,
+        Q: Hash + Eq,
+    {
         static EMPTY: BTreeMap<Arc<semver::Version>, index_data::Version> = BTreeMap::new();
-        self.crates.get(&name).unwrap_or(&EMPTY)
+        self.crates.get(name).unwrap_or(&EMPTY)
     }
 
-    fn get_versions(&self, name: impl Into<Arc<str>>) -> impl Iterator<Item = &'c semver::Version> {
+    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &'c semver::Version>
+    where
+        Q: ?Sized,
+        InternedString: std::borrow::Borrow<Q>,
+        Q: Hash + Eq,
+    {
         self.get_crate(name).keys().map(|v| &**v).rev()
     }
 
@@ -159,10 +166,8 @@ impl<'c> Index<'c> {
             }
         }
 
-        let mut vertions: HashMap<
-            (Arc<str>, SemverCompatibility),
-            (semver::Version, BTreeSet<Arc<str>>),
-        > = HashMap::new();
+        let mut vertions: HashMap<(&str, SemverCompatibility), (semver::Version, BTreeSet<&str>)> =
+            HashMap::new();
         // Identify the selected packages
         for (names, ver) in pubmap {
             if let Names::Bucket(name, cap, is_root) = &**names {
@@ -172,7 +177,7 @@ impl<'c> Index<'c> {
                 if *is_root {
                     continue;
                 }
-                let old_val = vertions.insert((name.clone(), *cap), (ver.clone(), BTreeSet::new()));
+                let old_val = vertions.insert((*name, *cap), (ver.clone(), BTreeSet::new()));
 
                 if old_val.is_some() {
                     return false;
@@ -185,21 +190,20 @@ impl<'c> Index<'c> {
                 if cap != &SemverCompatibility::from(ver) {
                     return false;
                 }
-                let old_val = vertions.get_mut(&(name.clone(), *cap)).unwrap();
+                let old_val = vertions.get_mut(&(name, *cap)).unwrap();
                 if &old_val.0 != ver {
                     return false;
                 }
-                let old_feat = old_val.1.insert(feat.clone());
+                let old_feat = old_val.1.insert(feat);
                 if !old_feat {
                     return false;
                 }
             }
         }
 
-        let default_intern: Arc<_> = "default".into();
-        let mut links: BTreeSet<Arc<str>> = BTreeSet::new();
+        let mut links: BTreeSet<_> = BTreeSet::new();
         for ((name, _), (ver, feats)) in vertions.iter() {
-            let index_ver = &self.get_crate(name.clone())[ver];
+            let index_ver = &self.get_crate(*name)[ver];
             if index_ver.yanked {
                 return false;
             }
@@ -211,7 +215,7 @@ impl<'c> Index<'c> {
             }
 
             for dep in &index_ver.deps {
-                if dep.optional && !feats.contains(&dep.name) {
+                if dep.optional && !feats.contains(&*dep.name) {
                     continue;
                 }
                 if dep.kind == DependencyKind::Dev {
@@ -228,8 +232,8 @@ impl<'c> Index<'c> {
                                 && dep
                                     .features
                                     .iter()
-                                    .all(|f| f.is_empty() || other_feats.contains(f))
-                                && (!dep.default_features || other_feats.contains(&default_intern))
+                                    .all(|f| f.is_empty() || other_feats.contains(&**f))
+                                && (!dep.default_features || other_feats.contains("default"))
                         });
                 if fulfilled.is_none() {
                     return false;
@@ -251,9 +255,9 @@ impl std::fmt::Display for SomeError {
 
 impl Error for SomeError {}
 
-fn deps_insert(
-    deps: &mut DependencyConstraints<Arc<Names>, SemverPubgrub>,
-    n: Arc<Names>,
+fn deps_insert<'c>(
+    deps: &mut DependencyConstraints<Arc<Names<'c>>, SemverPubgrub>,
+    n: Arc<Names<'c>>,
     r: SemverPubgrub,
 ) {
     deps.entry(n)
@@ -262,7 +266,7 @@ fn deps_insert(
 }
 
 impl<'c> DependencyProvider for Index<'c> {
-    type P = Arc<Names>;
+    type P = Arc<Names<'c>>;
 
     type V = semver::Version;
 
@@ -285,14 +289,14 @@ impl<'c> DependencyProvider for Index<'c> {
 
             Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
                 // one version for each bucket that match req
-                self.get_versions(package.crate_())
+                self.get_versions(&*package.crate_())
                     .filter(|v| req.matches(v))
                     .map(|v| SemverCompatibility::from(v))
                     .map(|v| v.canonical())
                     .find(|v| range.contains(v))
             }
             _ => self
-                .get_versions(package.crate_())
+                .get_versions(&*package.crate_())
                 .find(|v| range.contains(v))
                 .cloned(),
         })
@@ -314,7 +318,7 @@ impl<'c> DependencyProvider for Index<'c> {
 
             Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
                 // one version for each bucket that match req
-                self.get_versions(package.crate_())
+                self.get_versions(&*package.crate_())
                     .filter(|v| req.matches(v))
                     .map(|v| SemverCompatibility::from(v))
                     .dedup()
@@ -323,7 +327,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     .count()
             }
             _ => self
-                .get_versions(package.crate_())
+                .get_versions(&*package.crate_())
                 .filter(|v| range.contains(v))
                 .count(),
         })
@@ -331,7 +335,7 @@ impl<'c> DependencyProvider for Index<'c> {
 
     fn get_dependencies(
         &self,
-        package: &Arc<Names>,
+        package: &Arc<Names<'c>>,
         version: &semver::Version,
     ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
         self.dependencies
@@ -339,7 +343,7 @@ impl<'c> DependencyProvider for Index<'c> {
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
             Names::Bucket(name, _major, all_features) => {
-                let index_ver = &self.get_crate(name.clone())[version];
+                let index_ver = &self.get_crate(*name)[version];
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked".into()));
                 }
@@ -347,12 +351,12 @@ impl<'c> DependencyProvider for Index<'c> {
                 if let Some(link) = &index_ver.links {
                     let index_unique_to_each_crate_version = {
                         let mut state = StableHasher::new();
-                        (&**name).hash(&mut state);
+                        name.hash(&mut state);
                         version.hash(&mut state);
                         state.finish()
                     };
                     let ver = semver::Version::new(index_unique_to_each_crate_version, 0, 0);
-                    deps.insert(new_links(link.clone()), SemverPubgrub::singleton(ver));
+                    deps.insert(new_links(link), SemverPubgrub::singleton(ver));
                 }
                 for dep in &index_ver.deps {
                     if dep.kind == DependencyKind::Dev && !all_features {
@@ -367,14 +371,14 @@ impl<'c> DependencyProvider for Index<'c> {
                     let (cray, req_range) =
                         if let Some(compat) = req_range.only_one_compatibility_range() {
                             (
-                                new_bucket(dep.package_name.clone(), compat, false),
+                                new_bucket(dep.package_name.as_str(), compat, false),
                                 req_range,
                             )
                         } else {
                             (
                                 new_wide(
-                                    dep.package_name.clone(),
-                                    dep.req.clone(),
+                                    dep.package_name.as_str(),
+                                    dep.req.deref(),
                                     package.crate_(),
                                     version.into(),
                                 ),
@@ -391,20 +395,20 @@ impl<'c> DependencyProvider for Index<'c> {
                         deps_insert(&mut deps, cray.with_features("default"), req_range.clone());
                     }
                     for f in &dep.features {
-                        deps_insert(&mut deps, cray.with_features(f.clone()), req_range.clone());
+                        deps_insert(&mut deps, cray.with_features(f), req_range.clone());
                     }
                 }
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, feat) => {
-                let index_ver = &self.get_crate(name.clone())[version];
+                let index_ver = &self.get_crate(*name)[version];
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked".into()));
                 }
                 let mut compatibilitys: HashMap<_, Vec<(_, _)>> = HashMap::new();
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
-                    new_bucket(name.clone(), version.into(), false),
+                    new_bucket(name, version.into(), false),
                     SemverPubgrub::singleton(version.clone()),
                 );
 
@@ -413,20 +417,20 @@ impl<'c> DependencyProvider for Index<'c> {
                         continue;
                     }
 
-                    if dep.optional && dep.name == *feat {
+                    if dep.optional && dep.name.as_str() == *feat {
                         let req_range = SemverPubgrub::from(&*dep.req);
 
                         let (cray, req_range) =
                             if let Some(compat) = req_range.only_one_compatibility_range() {
                                 (
-                                    new_bucket(dep.package_name.clone(), compat, false),
+                                    new_bucket(dep.package_name.as_str(), compat, false),
                                     req_range,
                                 )
                             } else {
                                 (
                                     new_wide(
-                                        dep.package_name.clone(),
-                                        dep.req.clone(),
+                                        dep.package_name.as_str(),
+                                        dep.req.deref(),
                                         package.crate_(),
                                         version.into(),
                                     ),
@@ -447,45 +451,40 @@ impl<'c> DependencyProvider for Index<'c> {
                             );
                         }
                         for f in &dep.features {
-                            deps_insert(
-                                &mut deps,
-                                cray.with_features(f.clone()),
-                                req_range.clone(),
-                            );
+                            deps_insert(&mut deps, cray.with_features(f), req_range.clone());
                         }
                     }
 
                     compatibilitys
-                        .entry(dep.name.clone())
+                        .entry(dep.name)
                         .or_default()
-                        .push((dep.package_name.clone(), dep.req.clone()));
+                        .push((dep.package_name, dep.req.deref()));
                 }
                 if deps.len() > 1 {
                     return Ok(Dependencies::Available(deps));
                 }
 
-                if let Some(vals) = index_ver.features.get(feat) {
+                if let Some(vals) = index_ver.features.get(*feat) {
                     for val in vals {
                         if val.contains('/') {
-                            let val: Vec<Arc<str>> = val
+                            let val: Vec<&str> = val
                                 .trim_start_matches("dep:")
                                 .split(['/', '?'])
                                 .filter(|s| !s.is_empty())
-                                .map(|s| s.into())
                                 .collect();
                             assert!(val.len() == 2);
-                            for com in compatibilitys.get(&val[0]).into_iter().flatten() {
+                            for com in compatibilitys.get(val[0]).into_iter().flatten() {
                                 let req_range = SemverPubgrub::from(&*com.1);
 
                                 let (cray, req_range) = if let Some(compat) =
                                     req_range.only_one_compatibility_range()
                                 {
-                                    (new_bucket(com.0.clone(), compat, false), req_range)
+                                    (new_bucket(com.0.as_str(), compat, false), req_range)
                                 } else {
                                     (
                                         new_wide(
-                                            com.0.clone(),
-                                            com.1.clone(),
+                                            com.0.as_str(),
+                                            com.1,
                                             package.crate_(),
                                             version.into(),
                                         ),
@@ -497,7 +496,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                 }
                                 deps_insert(
                                     &mut deps,
-                                    cray.with_features(val[1].clone()),
+                                    cray.with_features(val[1]),
                                     req_range.clone(),
                                 );
                             }
@@ -520,30 +519,25 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::Wide(name, req, _, _) => {
                 let compatibility = SemverCompatibility::from(version);
                 let compat_range = SemverPubgrub::from(&compatibility);
-                let req_range = SemverPubgrub::from(&**req);
+                let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
                 Dependencies::Available(DependencyConstraints::from_iter([(
-                    new_bucket(name.clone(), compatibility, false),
+                    new_bucket(name, compatibility, false),
                     range,
                 )]))
             }
             Names::WideFeatures(name, req, parent, parent_com, feat) => {
                 let compatibility = SemverCompatibility::from(version);
                 let compat_range = SemverPubgrub::from(&compatibility);
-                let req_range = SemverPubgrub::from(&**req);
+                let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
-                        new_wide(
-                            name.clone(),
-                            req.clone(),
-                            parent.clone(),
-                            parent_com.clone(),
-                        ),
+                        new_wide(name, req, parent, parent_com.clone()),
                         SemverPubgrub::singleton(version.clone()),
                     ),
                     (
-                        new_bucket(name.clone(), compatibility, false).with_features(feat.clone()),
+                        new_bucket(name, compatibility, false).with_features(feat),
                         range,
                     ),
                 ]))
@@ -564,10 +558,10 @@ impl<'c> DependencyProvider for Index<'c> {
 
 fn process_carte_version<'c>(
     dp: &mut Index<'c>,
-    crt: Arc<str>,
+    crt: InternedString,
     ver: Arc<semver::Version>,
 ) -> OutPutSummery {
-    let root = new_bucket(&*crt, ver.deref().into(), true);
+    let root = new_bucket(crt.as_str(), ver.deref().into(), true);
     dp.reset();
     let res = resolve(dp, root.clone(), ver.deref().clone());
     let duration = dp.duration();
@@ -605,7 +599,7 @@ fn process_carte_version<'c>(
 
 #[derive(serde::Serialize)]
 struct OutPutSummery {
-    name: Arc<str>,
+    name: InternedString,
     ver: Arc<semver::Version>,
     time: f32,
     succeeded: bool,
@@ -616,7 +610,7 @@ struct OutPutSummery {
 #[test]
 fn files_pass_tests() {
     // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
-    let mut faild = vec![];
+    let mut faild: Vec<String> = vec![];
     for case in std::fs::read_dir("out/index_ron").unwrap() {
         let case = case.unwrap().path();
         let file_name = case.file_name().unwrap().to_string_lossy();
@@ -628,12 +622,12 @@ fn files_pass_tests() {
         let start_time = std::time::Instant::now();
         let data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
         let dp = Index::new(read_test_file(data));
-        let root = new_bucket(name, (&ver).into(), true);
+        let root = new_bucket(name.into(), (&ver).into(), true);
         match resolve(&dp, root.clone(), ver.clone()) {
             Ok(map) => {
                 if !dp.check(root.clone(), &map) {
                     dp.make_index_ron_file();
-                    faild.push(root);
+                    faild.push(root.to_string());
                 }
                 // dbg!(map);
             }
@@ -643,7 +637,7 @@ fn files_pass_tests() {
             }
             Err(e) => {
                 dp.make_index_ron_file();
-                faild.push(root);
+                faild.push(root.to_string());
                 dbg!(e);
             }
         }
@@ -651,7 +645,7 @@ fn files_pass_tests() {
 
         eprintln!(" in {}s", start_time.elapsed().as_secs());
     }
-    assert_eq!(faild.as_slice(), &[]);
+    assert_eq!(faild.as_slice(), &Vec::<String>::new());
 }
 
 fn main() {

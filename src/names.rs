@@ -3,45 +3,45 @@ use std::sync::Arc;
 use semver_pubgrub::SemverCompatibility;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub enum Names {
-    Bucket(Arc<str>, SemverCompatibility, bool),
-    BucketFeatures(Arc<str>, SemverCompatibility, Arc<str>),
+pub enum Names<'c> {
+    Bucket(&'c str, SemverCompatibility, bool),
+    BucketFeatures(&'c str, SemverCompatibility, &'c str),
     Wide(
-        Arc<str>,
-        Arc<semver::VersionReq>,
-        Arc<str>,
+        &'c str,
+        &'c semver::VersionReq,
+        &'c str,
         SemverCompatibility,
     ),
     WideFeatures(
-        Arc<str>,
-        Arc<semver::VersionReq>,
-        Arc<str>,
+        &'c str,
+        &'c semver::VersionReq,
+        &'c str,
         SemverCompatibility,
-        Arc<str>,
+        &'c str,
     ),
-    Links(Arc<str>),
+    Links(&'c str),
 }
 
-pub fn new_bucket(
-    crate_: impl Into<Arc<str>>,
+pub fn new_bucket<'c>(
+    crate_: &'c str,
     compat: SemverCompatibility,
     all_features: bool,
-) -> Arc<Names> {
-    Arc::new(Names::Bucket(crate_.into(), compat, all_features))
+) -> Arc<Names<'c>> {
+    Arc::new(Names::Bucket(crate_, compat, all_features))
 }
-pub fn new_wide(
-    crate_: impl Into<Arc<str>>,
-    req: impl Into<Arc<semver::VersionReq>>,
-    from: impl Into<Arc<str>>,
+pub fn new_wide<'c>(
+    crate_: &'c str,
+    req: &'c semver::VersionReq,
+    from: &'c str,
     compat: SemverCompatibility,
-) -> Arc<Names> {
-    Arc::new(Names::Wide(crate_.into(), req.into(), from.into(), compat))
+) -> Arc<Names<'c>> {
+    Arc::new(Names::Wide(crate_, req, from, compat))
 }
-pub fn new_links(crate_: impl Into<Arc<str>>) -> Arc<Names> {
-    Arc::new(Names::Links(crate_.into()))
+pub fn new_links<'c>(crate_: &'c str) -> Arc<Names<'c>> {
+    Arc::new(Names::Links(crate_))
 }
 
-impl Ord for Names {
+impl<'c> Ord for Names<'c> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         match (self, other) {
@@ -86,42 +86,37 @@ impl Ord for Names {
     }
 }
 
-impl PartialOrd for Names {
+impl<'c> PartialOrd for Names<'c> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Names {
+impl<'c> Names<'c> {
     pub fn is_real(&self) -> bool {
         matches!(self, &Self::Bucket(..))
     }
-    pub fn crate_(&self) -> Arc<str> {
+    pub fn crate_(&self) -> &'c str {
         match self {
-            Names::Bucket(c, _, _) => c.clone(),
-            Names::BucketFeatures(c, _, _) => c.clone(),
-            Names::Wide(c, _, _, _) => c.clone(),
-            Names::WideFeatures(c, _, _, _, _) => c.clone(),
+            Names::Bucket(c, _, _) => *c,
+            Names::BucketFeatures(c, _, _) => *c,
+            Names::Wide(c, _, _, _) => *c,
+            Names::WideFeatures(c, _, _, _, _) => *c,
             Names::Links(_) => panic!(),
         }
     }
-    pub fn with_features(&self, feat: impl Into<Arc<str>>) -> Arc<Self> {
-        let feat = feat.into();
+    pub fn with_features(&self, feat: &'c str) -> Arc<Self> {
         Arc::new(match self {
-            Names::Bucket(a, b, _) => Names::BucketFeatures(a.clone(), b.clone(), feat),
-            Names::BucketFeatures(a, b, _) => Names::BucketFeatures(a.clone(), b.clone(), feat),
-            Names::Wide(a, b, c, d) => {
-                Names::WideFeatures(a.clone(), b.clone(), c.clone(), d.clone(), feat)
-            }
-            Names::WideFeatures(a, b, c, d, _) => {
-                Names::WideFeatures(a.clone(), b.clone(), c.clone(), d.clone(), feat)
-            }
+            Names::Bucket(a, b, _) => Names::BucketFeatures(*a, *b, feat),
+            Names::BucketFeatures(a, b, _) => Names::BucketFeatures(*a, *b, feat),
+            Names::Wide(a, b, c, d) => Names::WideFeatures(*a, b, c, *d, feat),
+            Names::WideFeatures(a, b, c, d, _) => Names::WideFeatures(*a, b, c, *d, feat),
             Names::Links(_) => panic!(),
         })
     }
 }
 
-impl std::fmt::Display for Names {
+impl<'c> std::fmt::Display for Names<'c> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Names::Bucket(n, m, a) => {
@@ -188,13 +183,13 @@ impl std::fmt::Display for Names {
     }
 }
 
-impl std::fmt::Debug for Names {
+impl std::fmt::Debug for Names<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self, f)
     }
 }
 
-impl serde::Serialize for Names {
+impl serde::Serialize for Names<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
