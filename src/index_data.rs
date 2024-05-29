@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use itertools::Itertools;
 use cargo::util::interning::InternedString;
+use itertools::Itertools;
 
 fn is_default<D: Default + PartialEq>(t: &D) -> bool {
     t == &D::default()
@@ -16,7 +16,7 @@ pub struct Dependency {
     pub package_name: InternedString,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub req: Arc<semver::VersionReq>,
+    pub req: semver::VersionReq,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub features: Vec<InternedString>,

@@ -367,7 +367,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         continue; // handled in Names::Features
                     }
 
-                    let req_range = SemverPubgrub::from(&*dep.req);
+                    let req_range = SemverPubgrub::from(&dep.req);
 
                     let (cray, req_range) =
                         if let Some(compat) = req_range.only_one_compatibility_range() {
@@ -379,7 +379,7 @@ impl<'c> DependencyProvider for Index<'c> {
                             (
                                 new_wide(
                                     dep.package_name.as_str(),
-                                    dep.req.deref(),
+                                    &dep.req,
                                     package.crate_(),
                                     version.into(),
                                 ),
@@ -419,7 +419,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     }
 
                     if dep.optional && dep.name.as_str() == *feat {
-                        let req_range = SemverPubgrub::from(&*dep.req);
+                        let req_range = SemverPubgrub::from(&dep.req);
 
                         let (cray, req_range) =
                             if let Some(compat) = req_range.only_one_compatibility_range() {
@@ -431,7 +431,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                 (
                                     new_wide(
                                         dep.package_name.as_str(),
-                                        dep.req.deref(),
+                                        &dep.req,
                                         package.crate_(),
                                         version.into(),
                                     ),
@@ -459,7 +459,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     compatibilitys
                         .entry(dep.name)
                         .or_default()
-                        .push((dep.package_name, dep.req.deref()));
+                        .push((dep.package_name, &dep.req));
                 }
                 if deps.len() > 1 {
                     return Ok(Dependencies::Available(deps));
