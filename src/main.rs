@@ -667,10 +667,14 @@ fn main() {
 
     let file_handle = spawn(|| {
         let mut out_file = csv::Writer::from_path("out.csv").unwrap();
+        let start = Instant::now();
+        let mut cpu_time = 0.0;
         for row in rx {
+            cpu_time += row.time;
             out_file.serialize(row).unwrap();
         }
         out_file.flush().unwrap();
+        (cpu_time, start.elapsed().as_secs_f32())
     });
 
     let template = "PubGrub: [Time: {elapsed}, Rate: {per_sec}, Remaining: {eta}] {wide_bar} {pos:>6}/{len:6}: {percent:>3}%";
@@ -688,5 +692,17 @@ fn main() {
             let _ = tx.send(csv_line);
         });
 
-    file_handle.join().unwrap();
+    let (cpu_time, wall_time) = file_handle.join().unwrap();
+    println!(
+        "CPU time: {:.2}s == {:.2}min == {:.2}hr",
+        cpu_time,
+        cpu_time / 60.0,
+        cpu_time / 3600.0
+    );
+    println!(
+        "Wall time: {:.2}s == {:.2}min == {:.2}hr",
+        wall_time,
+        wall_time / 60.0,
+        wall_time / 3600.0
+    );
 }

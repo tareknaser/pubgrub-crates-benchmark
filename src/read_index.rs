@@ -12,7 +12,7 @@ pub fn read_index(
     index: &GitIndex,
     create_filter: impl Fn(&str) -> bool + Sync + 'static,
 ) -> &'static HashMap<Arc<str>, BTreeMap<Arc<semver::Version>, index_data::Version>> {
-    dbg!("Start reading index");
+    println!("Start reading index");
     let crates = index
         .crates_parallel()
         .map(|c| c.unwrap())
@@ -28,7 +28,7 @@ pub fn read_index(
             (name, ver_lookup)
         })
         .collect();
-    dbg!("Done reading index");
+    println!("Done reading index");
     &*Box::leak(Box::new(crates))
 }
 
