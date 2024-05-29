@@ -6,6 +6,7 @@ use std::{
     fs::File,
     hash::{Hash, Hasher},
     ops::{Bound, Deref},
+    rc::Rc,
     sync::{mpsc, Arc},
     thread::spawn,
     time::Instant,
@@ -46,7 +47,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 #[derive(Clone)]
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<Arc<semver::Version>, index_data::Version>>,
-    dependencies: RefCell<HashSet<(Arc<Names<'c>>, semver::Version)>>,
+    dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
     call_count: Cell<u64>,
 }
@@ -147,7 +148,7 @@ impl<'c> Index<'c> {
     }
 
     #[must_use]
-    fn check(&self, root: Arc<Names>, pubmap: &SelectedDependencies<Self>) -> bool {
+    fn check(&self, root: Rc<Names>, pubmap: &SelectedDependencies<Self>) -> bool {
         // Basic dependency resolution properties
         if !pubmap.contains_key(&root) {
             return false;
@@ -256,8 +257,8 @@ impl std::fmt::Display for SomeError {
 impl Error for SomeError {}
 
 fn deps_insert<'c>(
-    deps: &mut DependencyConstraints<Arc<Names<'c>>, SemverPubgrub>,
-    n: Arc<Names<'c>>,
+    deps: &mut DependencyConstraints<Rc<Names<'c>>, SemverPubgrub>,
+    n: Rc<Names<'c>>,
     r: SemverPubgrub,
 ) {
     deps.entry(n)
@@ -266,7 +267,7 @@ fn deps_insert<'c>(
 }
 
 impl<'c> DependencyProvider for Index<'c> {
-    type P = Arc<Names<'c>>;
+    type P = Rc<Names<'c>>;
 
     type V = semver::Version;
 
@@ -276,7 +277,7 @@ impl<'c> DependencyProvider for Index<'c> {
     type Err = SomeError;
     fn choose_version(
         &self,
-        package: &Arc<Names>,
+        package: &Rc<Names>,
         range: &SemverPubgrub,
     ) -> Result<Option<semver::Version>, Self::Err> {
         Ok(match &**package {
@@ -304,7 +305,7 @@ impl<'c> DependencyProvider for Index<'c> {
 
     type Priority = Reverse<usize>;
 
-    fn prioritize(&self, package: &Arc<Names>, range: &SemverPubgrub) -> Self::Priority {
+    fn prioritize(&self, package: &Rc<Names>, range: &SemverPubgrub) -> Self::Priority {
         Reverse(match &**package {
             Names::Links(_name) => {
                 // PubGrub automatically handles when any requirement has no overlap. So this is only deciding a importance of picking the version:
@@ -335,7 +336,7 @@ impl<'c> DependencyProvider for Index<'c> {
 
     fn get_dependencies(
         &self,
-        package: &Arc<Names<'c>>,
+        package: &Rc<Names<'c>>,
         version: &semver::Version,
     ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
         self.dependencies
@@ -679,9 +680,10 @@ fn main() {
     data.par_iter()
         .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
-        .map_with(Index::new(data), |dp, (crt, ver)| {
-            process_carte_version(dp, crt, ver.clone())
-        })
+        .map_init(
+            || Index::new(data),
+            |dp, (crt, ver)| process_carte_version(dp, crt, ver.clone()),
+        )
         .for_each_with(tx, |tx, csv_line| {
             let _ = tx.send(csv_line);
         });

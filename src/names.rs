@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use semver_pubgrub::SemverCompatibility;
 
@@ -26,19 +26,19 @@ pub fn new_bucket<'c>(
     crate_: &'c str,
     compat: SemverCompatibility,
     all_features: bool,
-) -> Arc<Names<'c>> {
-    Arc::new(Names::Bucket(crate_, compat, all_features))
+) -> Rc<Names<'c>> {
+    Rc::new(Names::Bucket(crate_, compat, all_features))
 }
 pub fn new_wide<'c>(
     crate_: &'c str,
     req: &'c semver::VersionReq,
     from: &'c str,
     compat: SemverCompatibility,
-) -> Arc<Names<'c>> {
-    Arc::new(Names::Wide(crate_, req, from, compat))
+) -> Rc<Names<'c>> {
+    Rc::new(Names::Wide(crate_, req, from, compat))
 }
-pub fn new_links<'c>(crate_: &'c str) -> Arc<Names<'c>> {
-    Arc::new(Names::Links(crate_))
+pub fn new_links<'c>(crate_: &'c str) -> Rc<Names<'c>> {
+    Rc::new(Names::Links(crate_))
 }
 
 impl<'c> Ord for Names<'c> {
@@ -105,8 +105,8 @@ impl<'c> Names<'c> {
             Names::Links(_) => panic!(),
         }
     }
-    pub fn with_features(&self, feat: &'c str) -> Arc<Self> {
-        Arc::new(match self {
+    pub fn with_features(&self, feat: &'c str) -> Rc<Self> {
+        Rc::new(match self {
             Names::Bucket(a, b, _) => Names::BucketFeatures(*a, *b, feat),
             Names::BucketFeatures(a, b, _) => Names::BucketFeatures(*a, *b, feat),
             Names::Wide(a, b, c, d) => Names::WideFeatures(*a, b, c, *d, feat),
