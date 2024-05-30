@@ -1,9 +1,7 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use cargo::util::interning::InternedString;
+use internment::Intern;
 use itertools::Itertools;
 
 fn is_default<D: Default + PartialEq>(t: &D) -> bool {
@@ -16,10 +14,10 @@ pub struct Dependency {
     pub package_name: InternedString,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub req: semver::VersionReq,
+    pub req: Intern<semver::VersionReq>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: Vec<InternedString>,
+    pub features: Intern<Vec<InternedString>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub default_features: bool,
@@ -45,7 +43,7 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
             name: dep.name().into(),
             package_name: dep.crate_name().into(),
             req: dep.requirement().parse::<semver::VersionReq>()?.into(),
-            features,
+            features: features.into(),
             kind: dep.kind(),
             optional: dep.is_optional(),
             default_features: dep.has_default_features(),
@@ -56,13 +54,13 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Version {
     pub name: InternedString,
-    pub vers: Arc<semver::Version>,
+    pub vers: Intern<semver::Version>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub deps: Vec<Dependency>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: BTreeMap<InternedString, BTreeSet<InternedString>>,
+    pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub links: Option<InternedString>,
@@ -85,16 +83,17 @@ impl TryFrom<&crates_index::Version> for Version {
             name: ver.name().into(),
             vers: ver.version().parse::<semver::Version>()?.into(),
             deps,
-            features: ver
-                .features()
-                .iter()
-                .map(|(f, ts)| {
-                    (
-                        f.as_str().into(),
-                        ts.iter().map(|f| f.as_str().into()).collect(),
-                    )
-                })
-                .collect(),
+            features: Intern::new(
+                ver.features()
+                    .iter()
+                    .map(|(f, ts)| {
+                        (
+                            f.as_str().into(),
+                            Intern::new(ts.iter().map(|f| f.as_str().into()).collect()),
+                        )
+                    })
+                    .collect(),
+            ),
             links: ver.links().map(|s| s.into()),
             yanked: ver.is_yanked(),
         })

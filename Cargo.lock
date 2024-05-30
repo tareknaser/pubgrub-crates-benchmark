@@ -156,6 +156,7 @@ dependencies = [
  "crates-index",
  "csv",
  "indicatif",
+ "internment",
  "itertools",
  "pubgrub",
  "rayon",
@@ -2337,6 +2338,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "internment"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcc54d0cead3645042423bf171f88d91e3c491c0c4027bccf81b8e7029bc5e35"
+dependencies = [
+ "hashbrown",
+ "serde",
 ]
 
 [[package]]
