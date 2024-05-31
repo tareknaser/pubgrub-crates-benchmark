@@ -9,6 +9,7 @@ use crate::index_data;
 pub fn read_index(
     index: &GitIndex,
     create_filter: impl Fn(&str) -> bool + Sync + 'static,
+    version_filter: impl Fn(&index_data::Version) -> bool + Sync + 'static,
 ) -> &'static HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
     println!("Start reading index");
     let crates = index
@@ -21,6 +22,7 @@ pub fn read_index(
                 .versions()
                 .iter()
                 .filter_map(|v| TryInto::<index_data::Version>::try_into(v).ok())
+                .filter(|v| version_filter(v))
                 .map(|v| ((*v.vers).clone(), v))
                 .collect();
             (name, ver_lookup)

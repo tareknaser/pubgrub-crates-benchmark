@@ -12,7 +12,7 @@ use std::{
     time::Instant,
 };
 
-use cargo::util::interning::InternedString;
+use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
@@ -35,6 +35,8 @@ mod names;
 
 mod read_index;
 use read_index::read_index;
+
+mod cargo_resolver;
 
 #[cfg(test)]
 use pubgrub::report::{DefaultStringReporter, Reporter};
@@ -588,6 +590,11 @@ fn process_carte_version<'c>(
         dp.make_index_ron_file();
         dp.make_pubgrub_ron_file();
     }
+
+    dp.reset();
+    let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
+    let cargo_duration = dp.duration();
+
     OutPutSummery {
         name: crt,
         ver,
@@ -598,6 +605,8 @@ fn process_carte_version<'c>(
             .as_ref()
             .map(|r| r.iter().filter(|(v, _)| v.is_real()).count())
             .unwrap_or(0),
+        cargo_time: cargo_duration,
+        cargo_res: cargo_out.is_ok(),
     }
 }
 
@@ -609,6 +618,8 @@ struct OutPutSummery {
     succeeded: bool,
     pubgrub_deps: usize,
     deps: usize,
+    cargo_time: f32,
+    cargo_res: bool,
 }
 
 #[test]
@@ -655,11 +666,14 @@ fn files_pass_tests() {
 fn main() {
     let create_filter = |name: &str| !name.contains("solana");
     println!("!!!!!!!!!! Excluding Solana Crates !!!!!!!!!!");
+    let version_filter =
+        |version: &index_data::Version| !version.yanked && Summary::try_from(version).is_ok();
+    println!("!!!!!!!!!! Excluding Yanked and Non Cargo Summary Versions !!!!!!!!!!");
 
     let index =
         crates_index::GitIndex::with_path("index", "https://github.com/rust-lang/crates.io-index")
             .unwrap();
-    let data = read_index(&index, create_filter);
+    let data = read_index(&index, create_filter, version_filter);
 
     let (tx, rx) = mpsc::channel::<OutPutSummery>();
 
@@ -667,12 +681,14 @@ fn main() {
         let mut out_file = csv::Writer::from_path("out.csv").unwrap();
         let start = Instant::now();
         let mut cpu_time = 0.0;
+        let mut cargo_cpu_time = 0.0;
         for row in rx {
             cpu_time += row.time;
+            cargo_cpu_time += row.cargo_time;
             out_file.serialize(row).unwrap();
         }
         out_file.flush().unwrap();
-        (cpu_time, start.elapsed().as_secs_f32())
+        (cpu_time, cargo_cpu_time, start.elapsed().as_secs_f32())
     });
 
     let template = "PubGrub: [Time: {elapsed}, Rate: {per_sec}, Remaining: {eta}] {wide_bar} {pos:>6}/{len:6}: {percent:>3}%";
@@ -691,12 +707,18 @@ fn main() {
             let _ = tx.send(csv_line);
         });
 
-    let (cpu_time, wall_time) = file_handle.join().unwrap();
+    let (cpu_time, cargo_cpu_time, wall_time) = file_handle.join().unwrap();
     println!(
         "CPU time: {:.2}s == {:.2}min == {:.2}hr",
         cpu_time,
         cpu_time / 60.0,
         cpu_time / 3600.0
+    );
+    println!(
+        "Cargo CPU time: {:.2}s == {:.2}min == {:.2}hr",
+        cargo_cpu_time,
+        cargo_cpu_time / 60.0,
+        cargo_cpu_time / 3600.0
     );
     println!(
         "Wall time: {:.2}s == {:.2}min == {:.2}hr",
