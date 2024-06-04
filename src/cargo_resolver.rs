@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use std::task::Poll;
 
@@ -59,24 +58,12 @@ pub fn resolve<'c>(
     ver: &semver::Version,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
-    let mut dep = Dependency::parse(name, None, registry_loc()).unwrap();
-    dep.set_version_req(semver::VersionReq::parse(&ver.to_string()).unwrap().into());
-
-    let summary = Summary::new(
-        PackageId::try_new("root", "1.0.0", registry_loc()).unwrap(),
-        vec![dep],
-        &BTreeMap::new(),
-        None::<&String>,
-        None,
-    )
-    .unwrap();
-    let opts = ResolveOpts::everything();
-    let version_prefs = VersionPreferences::default();
+    let summary = (&dp.crates[&name][ver]).try_into().unwrap();
     resolver::resolve(
-        &[(summary, opts)],
+        &[(summary, ResolveOpts::everything())],
         &[],
         dp,
-        &version_prefs,
+        &VersionPreferences::default(),
         ResolveVersion::with_rust_version(None),
         None,
     )
