@@ -20,9 +20,8 @@ impl<'a> Registry for crate::Index<'a> {
         kind: QueryKind,
         f: &mut dyn FnMut(IndexSummary),
     ) -> Poll<CargoResult<()>> {
-        if let Some(by_name) = self.crates.get(&dep.package_name()) {
-            for ver in by_name.values() {
-                let summary = ver.try_into().unwrap();
+        if let Some(by_name) = self.cargo_crates.get(&dep.package_name()) {
+            for summary in by_name.values() {
                 let matched = match kind {
                     QueryKind::Exact => dep.matches(&summary),
                     QueryKind::Alternatives => true,
@@ -58,7 +57,7 @@ pub fn resolve<'c>(
     ver: &semver::Version,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
-    let summary: Summary = (&dp.crates[&name][ver]).try_into().unwrap();
+    let summary = dp.cargo_crates[&name][ver].clone();
     let new_id = summary.package_id().with_source_id(registry_local());
     let summary = summary.override_id(new_id);
     resolver::resolve(

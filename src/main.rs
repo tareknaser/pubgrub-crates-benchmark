@@ -15,7 +15,7 @@ use std::{
 use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::DependencyKind;
 use hasher::StableHasher;
-use indicatif::{ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
+use indicatif::{ProgressBar, ProgressFinish, ProgressIterator, ProgressStyle};
 use itertools::Itertools as _;
 use names::{from_dep, new_bucket, new_links, new_wide, Names};
 use pubgrub::{
@@ -25,7 +25,6 @@ use pubgrub::{
     type_aliases::{DependencyConstraints, SelectedDependencies},
     version_set::VersionSet as _,
 };
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use ron::ser::PrettyConfig;
 use semver_pubgrub::{SemverCompatibility, SemverPubgrub};
 
@@ -52,6 +51,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 #[derive(Clone)]
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+    cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
     dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
     call_count: Cell<u64>,
@@ -60,9 +60,11 @@ struct Index<'c> {
 impl<'c> Index<'c> {
     pub fn new(
         crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+        cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
     ) -> Self {
         Self {
             crates,
+            cargo_crates,
             dependencies: Default::default(),
             start: Cell::new(Instant::now()),
             call_count: Cell::new(0),
@@ -604,7 +606,19 @@ fn files_pass_tests() {
         let data = std::fs::read_to_string(&case).unwrap();
         let start_time = std::time::Instant::now();
         let data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
-        let dp = Index::new(read_test_file(data));
+        let crates = read_test_file(data);
+        let cargo_crates = crates
+            .iter()
+            .map(|(n, vs)| {
+                (
+                    n.clone(),
+                    vs.iter()
+                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
+                        .collect(),
+                )
+            })
+            .collect();
+        let dp = Index::new(crates, cargo_crates);
         let root = new_bucket(name.into(), (&ver).into(), true);
         match resolve(&dp, root.clone(), ver.clone()) {
             Ok(map) => {
@@ -664,14 +678,25 @@ fn main() {
         .with_style(ProgressStyle::with_template(template).unwrap())
         .with_finish(ProgressFinish::AndLeave);
 
-    data.par_iter()
-        .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
+    let mut dp = Index::new(
+        data,
+        data.iter()
+            .map(|(n, vs)| {
+                (
+                    n.clone(),
+                    vs.iter()
+                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
+                        .collect(),
+                )
+            })
+            .collect(),
+    );
+
+    data.iter()
+        .flat_map(|(c, v)| v.iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
-        .map_init(
-            || Index::new(data),
-            |dp, (crt, ver)| process_carte_version(dp, crt, ver.clone()),
-        )
-        .for_each_with(tx, |tx, csv_line| {
+        .map(|(crt, ver)| process_carte_version(&mut dp, crt, ver.clone()))
+        .for_each(|csv_line| {
             let _ = tx.send(csv_line);
         });
 
