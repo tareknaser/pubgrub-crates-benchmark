@@ -28,10 +28,9 @@ impl<'a> Registry for crate::Index<'a> {
                     QueryKind::Normalized => true,
                 };
                 if matched {
-                    // TODO:
-                    // self.dependencies
-                    //     .borrow_mut()
-                    //     .insert((package.clone(), version.clone()));
+                    self.dependencies
+                        .borrow_mut()
+                        .insert((dep.package_name(), summary.version().clone()));
                     f(IndexSummary::Candidate(summary.clone()));
                 }
             }
@@ -72,9 +71,9 @@ pub fn resolve<'c>(
 
 impl From<&crate::index_data::Dependency> for Dependency {
     fn from(value: &crate::index_data::Dependency) -> Self {
-        let mut out = Dependency::parse(value.name, None, registry_loc()).unwrap();
+        let mut out = Dependency::parse(value.package_name, None, registry_loc()).unwrap();
         if value.name != value.package_name {
-            out.set_explicit_name_in_toml(&*value.package_name);
+            out.set_explicit_name_in_toml(&*value.name);
         }
         out.set_version_req((&*value.req).clone().into());
         out.set_features(value.features.iter().copied());

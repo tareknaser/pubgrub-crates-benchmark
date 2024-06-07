@@ -5,6 +5,7 @@ use std::{
     error::Error,
     fs::File,
     hash::{Hash, Hasher},
+    io::Write,
     ops::Bound,
     rc::Rc,
     sync::mpsc,
@@ -52,7 +53,8 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
     cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
-    dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
+    dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
+    pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
     call_count: Cell<u64>,
 }
@@ -65,14 +67,20 @@ impl<'c> Index<'c> {
         Self {
             crates,
             cargo_crates,
+            pubgrub_dependencies: Default::default(),
             dependencies: Default::default(),
             start: Cell::new(Instant::now()),
             call_count: Cell::new(0),
         }
     }
 
+    fn reset_time(&mut self) {
+        *self.start.get_mut() = Instant::now();
+    }
+
     fn reset(&mut self) {
         self.dependencies.get_mut().clear();
+        self.pubgrub_dependencies.get_mut().clear();
         *self.start.get_mut() = Instant::now();
     }
 
@@ -82,7 +90,12 @@ impl<'c> Index<'c> {
 
     fn make_pubgrub_ron_file(&self) {
         let mut dependency_provider: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
-        let deps = self.dependencies.borrow().iter().cloned().collect_vec();
+        let deps = self
+            .pubgrub_dependencies
+            .borrow()
+            .iter()
+            .cloned()
+            .collect_vec();
 
         let Some(name) = deps
             .iter()
@@ -104,35 +117,44 @@ impl<'c> Index<'c> {
         }
 
         let file_name = format!("out/pubgrub_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let file = File::create(&file_name).unwrap();
-        ron::ser::to_writer_pretty(file, &dependency_provider, PrettyConfig::new()).unwrap();
+        let mut file = File::create(&file_name).unwrap();
+        ron::ser::to_writer_pretty(&mut file, &dependency_provider, PrettyConfig::new()).unwrap();
+        file.flush().unwrap();
     }
 
     fn make_index_ron_file(&self) {
-        let mut deps = self.dependencies.borrow().iter().cloned().collect_vec();
-        deps.sort_unstable();
+        let mut grub_deps = self
+            .pubgrub_dependencies
+            .borrow()
+            .iter()
+            .cloned()
+            .collect_vec();
+        grub_deps.sort_unstable();
+        let deps = self.dependencies.borrow();
 
-        let name = deps
+        let name = grub_deps
             .iter()
             .find(|(name, _)| matches!(&**name, Names::Bucket(_, _, all) if *all))
             .unwrap();
 
-        let name_vers: BTreeSet<_> = deps
+        let name_vers: BTreeSet<_> = grub_deps
             .iter()
             .filter_map(|(package, version)| match &**package {
-                Names::Bucket(n, _, _) | Names::BucketFeatures(n, _, _) => Some((n, version)),
+                Names::Bucket(n, _, _) | Names::BucketFeatures(n, _, _) => Some((*n, version)),
                 _ => None,
             })
+            .chain(deps.iter().map(|(n, v)| (n.as_str(), v)))
             .collect();
 
         let out = name_vers
             .into_iter()
-            .map(|(n, version)| self.crates[*n][version].clone())
+            .map(|(n, version)| self.crates[n][version].clone())
             .collect_vec();
 
         let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let file = File::create(&file_name).unwrap();
-        ron::ser::to_writer_pretty(file, &out, PrettyConfig::new()).unwrap();
+        let mut file = File::create(&file_name).unwrap();
+        ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
+        file.flush().unwrap();
     }
 
     fn get_crate<Q>(&self, name: &Q) -> &'c BTreeMap<semver::Version, index_data::Version>
@@ -346,7 +368,7 @@ impl<'c> DependencyProvider for Index<'c> {
         package: &Rc<Names<'c>>,
         version: &semver::Version,
     ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
-        self.dependencies
+        self.pubgrub_dependencies
             .borrow_mut()
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
@@ -543,7 +565,7 @@ fn process_carte_version<'c>(
     let duration = dp.duration();
     match res.as_ref() {
         Ok(map) => {
-            if !dp.check(root, &map) {
+            if !dp.check(root.clone(), &map) {
                 dp.make_index_ron_file();
                 dp.make_pubgrub_ron_file();
                 panic!("failed check");
@@ -561,9 +583,14 @@ fn process_carte_version<'c>(
         dp.make_pubgrub_ron_file();
     }
 
-    dp.reset();
+    dp.reset_time();
     let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
     let cargo_duration = dp.duration();
+
+    if res.is_ok() != cargo_out.is_ok() {
+        dp.make_index_ron_file();
+        println!("failed to match cargo {root:?}");
+    }
 
     OutPutSummery {
         name: crt,
@@ -577,6 +604,7 @@ fn process_carte_version<'c>(
             .unwrap_or(0),
         cargo_time: cargo_duration,
         cargo_res: cargo_out.is_ok(),
+        cargo_deps: cargo_out.as_ref().map(|r| r.iter().count()).unwrap_or(0),
     }
 }
 
@@ -590,6 +618,7 @@ struct OutPutSummery {
     deps: usize,
     cargo_time: f32,
     cargo_res: bool,
+    cargo_deps: usize,
 }
 
 #[test]
@@ -610,17 +639,17 @@ fn files_pass_tests() {
         let cargo_crates = crates
             .iter()
             .map(|(n, vs)| {
-                (
-                    n.clone(),
-                    vs.iter()
-                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
-                        .collect(),
-                )
+                vs.iter()
+                    .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
+                    .collect::<Result<_, _>>()
+                    .map(|d| (n.clone(), d))
             })
-            .collect();
-        let dp = Index::new(crates, cargo_crates);
-        let root = new_bucket(name.into(), (&ver).into(), true);
-        match resolve(&dp, root.clone(), ver.clone()) {
+            .collect::<Result<_, _>>();
+        let run_cargo = cargo_crates.is_ok();
+        let mut dp = Index::new(crates, cargo_crates.unwrap_or_default());
+        let root = new_bucket(name, (&ver).into(), true);
+        let res = resolve(&dp, root.clone(), ver.clone());
+        match res.as_ref() {
             Ok(map) => {
                 if !dp.check(root.clone(), &map) {
                     dp.make_index_ron_file();
@@ -640,6 +669,14 @@ fn files_pass_tests() {
         }
         dp.make_pubgrub_ron_file();
 
+        if run_cargo {
+            let cargo_out = cargo_resolver::resolve(name.into(), &ver, &mut dp);
+
+            if res.is_ok() != cargo_out.is_ok() {
+                dp.make_index_ron_file();
+                faild.push(root.to_string());
+            }
+        }
         eprintln!(" in {}s", start_time.elapsed().as_secs());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
