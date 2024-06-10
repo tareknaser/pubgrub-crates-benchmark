@@ -1,0 +1,28 @@
+[
+    (
+        name: "b",
+        vers: "0.3.7",
+        deps: [
+            (
+                name: "c",
+                package_name: "c",
+                optional: true,
+            ),
+        ],
+    ),
+    (
+        name: "test-h",
+        vers: "0.0.1",
+        deps: [
+            (
+                name: "b",
+                package_name: "b",
+            ),
+        ],
+        features: {
+            "d": [
+                "b/c",
+            ],
+        },
+    ),
+]

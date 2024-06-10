@@ -348,8 +348,8 @@ impl<'c> DependencyProvider for Index<'c> {
             .borrow_mut()
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
-            Names::Bucket(name, _major, all_features) => {
-                let index_ver = &self.get_crate(*name)[version];
+            &Names::Bucket(name, _major, all_features) => {
+                let index_ver = &self.get_crate(name)[version];
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked".into()));
                 }
@@ -384,6 +384,32 @@ impl<'c> DependencyProvider for Index<'c> {
                     }
                     for f in &*dep.features {
                         deps_insert(&mut deps, cray.with_features(f), req_range.clone());
+                    }
+                }
+                if all_features {
+                    for vals in index_ver.features.values() {
+                        for val in &**vals {
+                            if val.contains('/') {
+                                let val: Vec<&str> = val
+                                    .trim_start_matches("dep:")
+                                    .split(['/', '?'])
+                                    .filter(|s| !s.is_empty())
+                                    .collect();
+                                assert!(val.len() == 2);
+                                for com in index_ver.deps.get(val[0]) {
+                                    let (cray, req_range) = from_dep(com, name, version);
+
+                                    if &cray == package {
+                                        return Ok(Dependencies::Unavailable("self dep".into()));
+                                    }
+                                    deps_insert(
+                                        &mut deps,
+                                        cray.with_features(val[1]),
+                                        req_range.clone(),
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
                 Dependencies::Available(deps)
