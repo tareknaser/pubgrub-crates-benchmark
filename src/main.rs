@@ -17,7 +17,7 @@ use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
 use itertools::Itertools as _;
-use names::{new_bucket, new_links, new_wide, Names};
+use names::{from_dep, new_bucket, new_links, new_wide, Names};
 use pubgrub::{
     error::PubGrubError,
     solver::resolve,
@@ -372,25 +372,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         continue; // handled in Names::Features
                     }
 
-                    let req_range = SemverPubgrub::from(&*dep.req);
-
-                    let (cray, req_range) =
-                        if let Some(compat) = req_range.only_one_compatibility_range() {
-                            (
-                                new_bucket(dep.package_name.as_str(), compat, false),
-                                req_range,
-                            )
-                        } else {
-                            (
-                                new_wide(
-                                    dep.package_name.as_str(),
-                                    &dep.req,
-                                    package.crate_(),
-                                    version.into(),
-                                ),
-                                SemverPubgrub::full(),
-                            )
-                        };
+                    let (cray, req_range) = from_dep(&dep, name, version);
 
                     if &cray == package {
                         return Ok(Dependencies::Unavailable("self dep".into()));
@@ -411,7 +393,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked".into()));
                 }
-                let mut compatibilitys: HashMap<_, Vec<(_, _)>> = HashMap::new();
+                let mut compatibilitys: HashMap<_, Vec<_>> = HashMap::new();
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
                     new_bucket(name, version.into(), false),
@@ -424,25 +406,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     }
 
                     if dep.optional && dep.name.as_str() == *feat {
-                        let req_range = SemverPubgrub::from(&*dep.req);
-
-                        let (cray, req_range) =
-                            if let Some(compat) = req_range.only_one_compatibility_range() {
-                                (
-                                    new_bucket(dep.package_name.as_str(), compat, false),
-                                    req_range,
-                                )
-                            } else {
-                                (
-                                    new_wide(
-                                        dep.package_name.as_str(),
-                                        &dep.req,
-                                        package.crate_(),
-                                        version.into(),
-                                    ),
-                                    SemverPubgrub::full(),
-                                )
-                            };
+                        let (cray, req_range) = from_dep(&dep, name, version);
 
                         if &cray == package {
                             return Ok(Dependencies::Unavailable("self dep".into()));
@@ -461,10 +425,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         }
                     }
 
-                    compatibilitys
-                        .entry(dep.name)
-                        .or_default()
-                        .push((dep.package_name, &dep.req));
+                    compatibilitys.entry(dep.name).or_default().push(dep);
                 }
                 if deps.len() > 1 {
                     return Ok(Dependencies::Available(deps));
@@ -480,23 +441,8 @@ impl<'c> DependencyProvider for Index<'c> {
                                 .collect();
                             assert!(val.len() == 2);
                             for com in compatibilitys.get(val[0]).into_iter().flatten() {
-                                let req_range = SemverPubgrub::from(&**com.1);
+                                let (cray, req_range) = from_dep(com, name, version);
 
-                                let (cray, req_range) = if let Some(compat) =
-                                    req_range.only_one_compatibility_range()
-                                {
-                                    (new_bucket(com.0.as_str(), compat, false), req_range)
-                                } else {
-                                    (
-                                        new_wide(
-                                            com.0.as_str(),
-                                            com.1,
-                                            package.crate_(),
-                                            version.into(),
-                                        ),
-                                        SemverPubgrub::full(),
-                                    )
-                                };
                                 if &cray == package {
                                     return Ok(Dependencies::Unavailable("self dep".into()));
                                 }
