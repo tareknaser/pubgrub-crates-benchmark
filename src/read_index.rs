@@ -35,7 +35,7 @@ pub fn read_index(
 #[cfg(test)]
 pub fn read_test_file(
     iter: impl IntoIterator<Item = index_data::Version>,
-) -> &'static HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
+) -> HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
     let mut deps: HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> =
         HashMap::new();
 
@@ -44,5 +44,5 @@ pub fn read_test_file(
             .or_default()
             .insert((*v.vers).clone(), v);
     }
-    &*Box::leak(Box::new(deps))
+    deps
 }

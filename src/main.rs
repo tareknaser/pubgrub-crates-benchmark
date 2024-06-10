@@ -621,66 +621,8 @@ struct OutPutSummery {
     cargo_deps: usize,
 }
 
-#[test]
-fn files_pass_tests() {
-    // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
-    let mut faild: Vec<String> = vec![];
-    for case in std::fs::read_dir("out/index_ron").unwrap() {
-        let case = case.unwrap().path();
-        let file_name = case.file_name().unwrap().to_string_lossy();
-        let (name, rest) = file_name.split_once("@").unwrap();
-        let ver = rest.strip_suffix(".ron").unwrap();
-        dbg!((name, ver));
-        let ver: semver::Version = ver.parse().unwrap();
-        let data = std::fs::read_to_string(&case).unwrap();
-        let start_time = std::time::Instant::now();
-        let data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
-        let crates = read_test_file(data);
-        let cargo_crates = crates
-            .iter()
-            .map(|(n, vs)| {
-                vs.iter()
-                    .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
-                    .collect::<Result<_, _>>()
-                    .map(|d| (n.clone(), d))
-            })
-            .collect::<Result<_, _>>();
-        let run_cargo = cargo_crates.is_ok();
-        let mut dp = Index::new(crates, cargo_crates.unwrap_or_default());
-        let root = new_bucket(name, (&ver).into(), true);
-        let res = resolve(&dp, root.clone(), ver.clone());
-        match res.as_ref() {
-            Ok(map) => {
-                if !dp.check(root.clone(), &map) {
-                    dp.make_index_ron_file();
-                    faild.push(root.to_string());
-                }
-                // dbg!(map);
-            }
-
-            Err(PubGrubError::NoSolution(derivation)) => {
-                eprintln!("{}", DefaultStringReporter::report(&derivation));
-            }
-            Err(e) => {
-                dp.make_index_ron_file();
-                faild.push(root.to_string());
-                dbg!(e);
-            }
-        }
-        dp.make_pubgrub_ron_file();
-
-        if run_cargo {
-            let cargo_out = cargo_resolver::resolve(name.into(), &ver, &mut dp);
-
-            if res.is_ok() != cargo_out.is_ok() {
-                dp.make_index_ron_file();
-                faild.push(root.to_string());
-            }
-        }
-        eprintln!(" in {}s", start_time.elapsed().as_secs());
-    }
-    assert_eq!(faild.as_slice(), &Vec::<String>::new());
-}
+#[cfg(test)]
+mod tests;
 
 fn main() {
     let create_filter = |name: &str| !name.contains("solana");
