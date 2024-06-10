@@ -1,0 +1,27 @@
+[
+    (
+        name: "log",
+        vers: "0.0.1",
+    ),
+    (
+        name: "test-g",
+        vers: "0.1.0",
+    ),
+    (
+        name: "test-g",
+        vers: "0.1.1",
+        deps: [
+            (
+                name: "log",
+                package_name: "log",
+                optional: true,
+            ),
+            (
+                name: "test-g-1",
+                package_name: "test-g",
+                req: "=0.1.0",
+                kind: dev,
+            ),
+        ],
+    ),
+]

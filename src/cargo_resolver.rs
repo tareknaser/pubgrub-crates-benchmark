@@ -58,7 +58,9 @@ pub fn resolve<'c>(
     ver: &semver::Version,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
-    let summary = (&dp.crates[&name][ver]).try_into().unwrap();
+    let summary: Summary = (&dp.crates[&name][ver]).try_into().unwrap();
+    let new_id = summary.package_id().with_source_id(registry_local());
+    let summary = summary.override_id(new_id);
     resolver::resolve(
         &[(summary, ResolveOpts::everything())],
         &[],
@@ -102,10 +104,14 @@ impl TryFrom<&crate::index_data::Version> for Summary {
     }
 }
 
+fn registry_local() -> SourceId {
+    static SOME_LOCAL_PATH: OnceLock<SourceId> = OnceLock::new();
+    *SOME_LOCAL_PATH
+        .get_or_init(|| SourceId::for_path(std::path::Path::new("/some-local-path")).unwrap())
+}
+
 fn registry_loc() -> SourceId {
     static EXAMPLE_DOT_COM: OnceLock<SourceId> = OnceLock::new();
-    let example_dot = EXAMPLE_DOT_COM.get_or_init(|| {
-        SourceId::for_registry(&"https://example.com".into_url().unwrap()).unwrap()
-    });
-    *example_dot
+    *EXAMPLE_DOT_COM
+        .get_or_init(|| SourceId::for_registry(&"https://example.com".into_url().unwrap()).unwrap())
 }
