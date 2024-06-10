@@ -220,7 +220,7 @@ impl<'c> Index<'c> {
                 }
             }
 
-            for dep in &index_ver.deps {
+            for dep in index_ver.deps.iter() {
                 if dep.optional && !feats.contains(&*dep.name) {
                     continue;
                 }
@@ -364,7 +364,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     let ver = semver::Version::new(index_unique_to_each_crate_version, 0, 0);
                     deps.insert(new_links(link), SemverPubgrub::singleton(ver));
                 }
-                for dep in &index_ver.deps {
+                for dep in index_ver.deps.iter() {
                     if dep.kind == DependencyKind::Dev && !all_features {
                         continue;
                     }
@@ -393,19 +393,17 @@ impl<'c> DependencyProvider for Index<'c> {
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked".into()));
                 }
-                let mut compatibilitys: HashMap<_, Vec<_>> = HashMap::new();
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
                     new_bucket(name, version.into(), false),
                     SemverPubgrub::singleton(version.clone()),
                 );
 
-                for dep in &index_ver.deps {
-                    if dep.kind == DependencyKind::Dev {
-                        continue;
-                    }
-
-                    if dep.optional && dep.name.as_str() == *feat {
+                for dep in index_ver.deps.get(*feat) {
+                    if dep.optional {
+                        if dep.kind == DependencyKind::Dev {
+                            continue;
+                        }
                         let (cray, req_range) = from_dep(&dep, name, version);
 
                         if &cray == package {
@@ -424,8 +422,6 @@ impl<'c> DependencyProvider for Index<'c> {
                             deps_insert(&mut deps, cray.with_features(f), req_range.clone());
                         }
                     }
-
-                    compatibilitys.entry(dep.name).or_default().push(dep);
                 }
                 if deps.len() > 1 {
                     return Ok(Dependencies::Available(deps));
@@ -440,7 +436,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                 .filter(|s| !s.is_empty())
                                 .collect();
                             assert!(val.len() == 2);
-                            for com in compatibilitys.get(val[0]).into_iter().flatten() {
+                            for com in index_ver.deps.get(val[0]) {
                                 let (cray, req_range) = from_dep(com, name, version);
 
                                 if &cray == package {

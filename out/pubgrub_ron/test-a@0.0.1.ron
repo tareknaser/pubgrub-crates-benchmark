@@ -33,11 +33,6 @@
     },
     "Bucket:a@0.0.1/b_package": {
         "0.0.1": {
-            "Bucket:a@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
             "Range:b(From:a@0.0.1):*": (
                 normal: [
                     (Unbounded, Unbounded),
@@ -46,16 +41,21 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-        },
-    },
-    "Bucket:a@0.0.1/default": {
-        "0.0.1": {
             "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
+        },
+    },
+    "Bucket:a@0.0.1/default": {
+        "0.0.1": {
             "Bucket:a@0.0.1/b_package": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],

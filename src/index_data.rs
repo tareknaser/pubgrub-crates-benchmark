@@ -51,13 +51,56 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
     }
 }
 
+#[derive(Default, Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(from = "Vec<Dependency>")]
+#[serde(into = "Vec<Dependency>")]
+pub struct DependencyList {
+    deps: BTreeMap<InternedString, Intern<Vec<Dependency>>>,
+}
+
+impl DependencyList {
+    pub fn iter(&self) -> impl Iterator<Item = &Dependency> {
+        self.deps.iter().flat_map(|(_, v)| v.iter())
+    }
+
+    pub fn get<Q: ?Sized>(&self, name: &Q) -> &[Dependency]
+    where
+        InternedString: std::borrow::Borrow<Q>,
+        Q: std::cmp::Ord,
+    {
+        self.deps.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+}
+
+impl From<Vec<Dependency>> for DependencyList {
+    fn from(value: Vec<Dependency>) -> Self {
+        let mut deps: BTreeMap<InternedString, Vec<Dependency>> = BTreeMap::new();
+        for dep in value {
+            deps.entry(dep.name).or_default().push(dep);
+        }
+        DependencyList {
+            deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
+        }
+    }
+}
+
+impl Into<Vec<Dependency>> for DependencyList {
+    fn into(self) -> Vec<Dependency> {
+        self.deps
+            .iter()
+            .flat_map(|(_, v)| v.iter())
+            .cloned()
+            .collect()
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Version {
     pub name: InternedString,
     pub vers: Intern<semver::Version>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub deps: Vec<Dependency>,
+    pub deps: DependencyList,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
@@ -73,16 +116,19 @@ impl TryFrom<&crates_index::Version> for Version {
     type Error = semver::Error;
 
     fn try_from(ver: &crates_index::Version) -> Result<Self, Self::Error> {
-        let mut deps: Vec<Dependency> = ver
-            .dependencies()
-            .iter()
-            .map(|d| TryInto::<Dependency>::try_into(d))
-            .collect::<Result<_, _>>()?;
-        deps.sort_unstable_by_key(|d| d.package_name.clone());
+        let mut deps: BTreeMap<InternedString, Vec<Dependency>> = BTreeMap::new();
+        for dep in ver.dependencies() {
+            deps.entry(dep.name().into())
+                .or_default()
+                .push(TryInto::<Dependency>::try_into(dep)?);
+        }
+
         Ok(Version {
             name: ver.name().into(),
             vers: ver.version().parse::<semver::Version>()?.into(),
-            deps,
+            deps: DependencyList {
+                deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
+            },
             features: Intern::new(
                 ver.features()
                     .iter()
