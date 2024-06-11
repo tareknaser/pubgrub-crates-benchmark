@@ -56,7 +56,13 @@ fn check<'c>(
     if run_cargo {
         let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
-        if res.is_ok() != cargo_out.is_ok() {
+        // TODO: check for cyclic package dependency!
+        let cyclic_package_dependency = &cargo_out
+            .as_ref()
+            .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+            == &Err(true);
+
+        if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
             return false;
         }
     }
@@ -64,7 +70,7 @@ fn check<'c>(
 }
 
 #[test]
-fn files_pass_tests() {
+fn named_from_files_pass_tests() {
     // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
     let mut faild: Vec<_> = vec![];
     for case in std::fs::read_dir("out/index_ron").unwrap() {

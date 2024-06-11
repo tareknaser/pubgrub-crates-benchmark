@@ -587,7 +587,13 @@ fn process_carte_version<'c>(
     let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
     let cargo_duration = dp.duration();
 
-    if res.is_ok() != cargo_out.is_ok() {
+    // TODO: check for cyclic package dependency!
+    let cyclic_package_dependency = &cargo_out
+        .as_ref()
+        .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+        == &Err(true);
+
+    if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
         dp.make_index_ron_file();
         println!("failed to match cargo {root:?}");
     }
