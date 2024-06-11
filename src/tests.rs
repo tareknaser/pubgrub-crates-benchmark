@@ -33,7 +33,7 @@ fn crates_data_from_file<P: AsRef<Path>>(
 fn check<'c>(
     dp: &mut Index<'c>,
     root: Rc<Names<'c>>,
-    ver: semver::Version,
+    ver: &semver::Version,
     run_cargo: bool,
 ) -> bool {
     dp.reset();
@@ -77,11 +77,37 @@ fn files_pass_tests() {
         let run_cargo = cargo_crates.is_ok();
         let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
         let root = new_bucket(&name, (&ver).into(), true);
-        if !check(&mut dp, root, ver, run_cargo) {
+        if !check(&mut dp, root, &ver, run_cargo) {
             dp.make_index_ron_file();
             faild.push(file_name.to_string());
         };
         dp.make_pubgrub_ron_file();
+        eprintln!(" in {}s", start_time.elapsed().as_secs());
+    }
+    assert_eq!(faild.as_slice(), &Vec::<String>::new());
+}
+
+#[test]
+fn all_vers_in_files_pass_tests() {
+    // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
+    let mut faild: Vec<_> = vec![];
+    for case in std::fs::read_dir("out/index_ron").unwrap() {
+        let case = case.unwrap().path();
+        let file_name = case.file_name().unwrap().to_string_lossy();
+        eprintln!("Running: {file_name}");
+        let start_time = std::time::Instant::now();
+        let (crates, cargo_crates) = crates_data_from_file(&case);
+        let run_cargo = cargo_crates.is_ok();
+        let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+        for (name, vers) in &crates {
+            for ver in vers.keys() {
+                let root = new_bucket(&name, ver.into(), true);
+                if !check(&mut dp, root, ver, run_cargo) {
+                    dp.make_index_ron_file();
+                    faild.push(format!("{file_name}:{name}@{ver}"));
+                };
+            }
+        }
         eprintln!(" in {}s", start_time.elapsed().as_secs());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
