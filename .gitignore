@@ -1,5 +1,6 @@
 /target
 *.ron
+!test-*.ron
 *.zip
 index/
 *.csv

@@ -39,8 +39,6 @@ use read_index::read_index;
 mod cargo_resolver;
 
 #[cfg(test)]
-use pubgrub::report::{DefaultStringReporter, Reporter};
-#[cfg(test)]
 use read_index::read_test_file;
 
 #[global_allocator]
@@ -381,7 +379,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 if let Some(link) = &index_ver.links {
                     let index_unique_to_each_crate_version = {
                         let mut state = StableHasher::new();
-                        name.hash(&mut state);
+                        package.hash(&mut state);
                         version.hash(&mut state);
                         state.finish()
                     };

@@ -45,15 +45,20 @@ fn check<'c>(
             }
         }
 
-        Err(PubGrubError::NoSolution(derivation)) => {
-            eprintln!("{}", DefaultStringReporter::report(&derivation));
+        Err(PubGrubError::NoSolution(_derivation)) => {
+            // eprintln!("{}", DefaultStringReporter::report(&derivation));
         }
         Err(_e) => {
             return false;
         }
     }
 
-    if run_cargo {
+    if run_cargo
+        && dp
+            .cargo_crates
+            .get(root.crate_())
+            .is_some_and(|n| n.contains_key(ver))
+    {
         let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
         // TODO: check for cyclic package dependency!
@@ -91,6 +96,66 @@ fn named_from_files_pass_tests() {
         eprintln!(" in {}s", start_time.elapsed().as_secs());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
+}
+
+#[test]
+fn named_from_files_pass_without_vers() {
+    // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
+    for case in std::fs::read_dir("out/index_ron").unwrap() {
+        let case = case.unwrap().path();
+        let file_name = case.file_name().unwrap().to_string_lossy();
+        let (name, ver) = case_from_file_name(&file_name);
+        eprintln!("Running: {name} @ {ver}");
+        let start_time = std::time::Instant::now();
+        let data = std::fs::read_to_string(&case).unwrap();
+        let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
+        let mut offset = 0;
+        'data: loop {
+            for i in 0..data.len() {
+                let i = (i + offset) % data.len();
+                let mut small_data = data.clone();
+                small_data.remove(i);
+                let crates = read_test_file(small_data.iter().cloned());
+                let cargo_crates = crates
+                    .iter()
+                    .map(|(n, vs)| {
+                        vs.iter()
+                            .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
+                            .collect::<Result<_, _>>()
+                            .map(|d| (n.clone(), d))
+                    })
+                    .collect::<Result<_, _>>();
+                let run_cargo = cargo_crates.is_ok();
+                let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+                let root = new_bucket(&name, (&ver).into(), true);
+                if !check(&mut dp, root, &ver, run_cargo) {
+                    data = small_data;
+                    offset = i;
+                    println!("Failed on {i}");
+                    continue 'data;
+                };
+            }
+            break;
+        }
+        let crates = read_test_file(data);
+        let cargo_crates = crates
+            .iter()
+            .map(|(n, vs)| {
+                vs.iter()
+                    .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
+                    .collect::<Result<_, _>>()
+                    .map(|d| (n.clone(), d))
+            })
+            .collect::<Result<_, _>>();
+        let run_cargo = cargo_crates.is_ok();
+        let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+        let root = new_bucket(&name, (&ver).into(), true);
+        if !check(&mut dp, root, &ver, run_cargo) {
+            dp.make_index_ron_file();
+        };
+
+        eprintln!(" in {}s", start_time.elapsed().as_secs());
+    }
 }
 
 #[test]
