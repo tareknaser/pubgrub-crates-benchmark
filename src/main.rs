@@ -246,6 +246,9 @@ impl<'c> Index<'c> {
                 if dep.optional && !feats.contains(&*dep.name) {
                     continue;
                 }
+                if index_ver.features.contains_key(&*dep.name) {
+                    continue;
+                }
                 if dep.kind == DependencyKind::Dev {
                     continue;
                 }
@@ -446,36 +449,10 @@ impl<'c> DependencyProvider for Index<'c> {
                     new_bucket(name, version.into(), false),
                     SemverPubgrub::singleton(version.clone()),
                 );
-
-                for dep in index_ver.deps.get(*feat) {
-                    if dep.optional {
-                        if dep.kind == DependencyKind::Dev {
-                            continue;
-                        }
-                        let (cray, req_range) = from_dep(&dep, name, version);
-
-                        if &cray == package {
-                            return Ok(Dependencies::Unavailable("self dep".into()));
-                        }
-                        deps_insert(&mut deps, cray.clone(), req_range.clone());
-
-                        if dep.default_features {
-                            deps_insert(
-                                &mut deps,
-                                cray.with_features("default"),
-                                req_range.clone(),
-                            );
-                        }
-                        for f in &*dep.features {
-                            deps_insert(&mut deps, cray.with_features(f), req_range.clone());
-                        }
-                    }
-                }
-                if deps.len() > 1 {
-                    return Ok(Dependencies::Available(deps));
-                }
+                let mut found_name = false;
 
                 if let Some(vals) = index_ver.features.get(*feat) {
+                    found_name = true;
                     for val in &**vals {
                         if val.contains('/') {
                             let val: Vec<&str> = val
@@ -504,13 +481,46 @@ impl<'c> DependencyProvider for Index<'c> {
                             );
                         }
                     }
-                    return Ok(Dependencies::Available(deps));
                 }
-                if **feat == *"default" {
+                if *feat == "default" {
                     // if "default" was specified it would be in features
+                    found_name = true;
+                }
+
+                if found_name {
                     return Ok(Dependencies::Available(deps));
                 }
-                Dependencies::Unavailable("no matching feat".into())
+
+                for dep in index_ver.deps.get(*feat) {
+                    if dep.optional {
+                        if dep.kind == DependencyKind::Dev {
+                            continue;
+                        }
+                        found_name = true;
+                        let (cray, req_range) = from_dep(&dep, name, version);
+
+                        if &cray == package {
+                            return Ok(Dependencies::Unavailable("self dep".into()));
+                        }
+                        deps_insert(&mut deps, cray.clone(), req_range.clone());
+
+                        if dep.default_features {
+                            deps_insert(
+                                &mut deps,
+                                cray.with_features("default"),
+                                req_range.clone(),
+                            );
+                        }
+                        for f in &*dep.features {
+                            deps_insert(&mut deps, cray.with_features(f), req_range.clone());
+                        }
+                    }
+                }
+                if found_name {
+                    Dependencies::Available(deps)
+                } else {
+                    Dependencies::Unavailable("no matching feat".into())
+                }
             }
             Names::Wide(name, req, _, _) => {
                 let compatibility = SemverCompatibility::from(version);

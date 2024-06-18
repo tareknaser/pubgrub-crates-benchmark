@@ -116,19 +116,16 @@ impl TryFrom<&crates_index::Version> for Version {
     type Error = semver::Error;
 
     fn try_from(ver: &crates_index::Version) -> Result<Self, Self::Error> {
-        let mut deps: BTreeMap<InternedString, Vec<Dependency>> = BTreeMap::new();
-        for dep in ver.dependencies() {
-            deps.entry(dep.name().into())
-                .or_default()
-                .push(TryInto::<Dependency>::try_into(dep)?);
-        }
+        let deps: Result<Vec<_>, _> = ver
+            .dependencies()
+            .iter()
+            .map(|d| TryInto::<Dependency>::try_into(d))
+            .collect();
 
         Ok(Version {
             name: ver.name().into(),
             vers: ver.version().parse::<semver::Version>()?.into(),
-            deps: DependencyList {
-                deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
-            },
+            deps: deps?.into(),
             features: Intern::new(
                 ver.features()
                     .iter()
