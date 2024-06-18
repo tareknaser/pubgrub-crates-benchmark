@@ -466,6 +466,13 @@ impl<'c> DependencyProvider for Index<'c> {
                                     cray.with_features(val[1]),
                                     req_range.clone(),
                                 );
+                                if com.optional {
+                                    deps_insert(
+                                        &mut deps,
+                                        package.with_features(val[0]),
+                                        SemverPubgrub::singleton(version.clone()),
+                                    );
+                                }
                             }
                         } else {
                             deps_insert(
