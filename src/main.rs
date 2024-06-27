@@ -415,11 +415,8 @@ impl<'c> DependencyProvider for Index<'c> {
                     for vals in index_ver.features.values() {
                         for val in &**vals {
                             if val.contains('/') {
-                                let val: Vec<&str> = val
-                                    .trim_start_matches("dep:")
-                                    .split(['/', '?'])
-                                    .filter(|s| !s.is_empty())
-                                    .collect();
+                                let val: Vec<&str> =
+                                    val.split(['/', '?']).filter(|s| !s.is_empty()).collect();
                                 assert!(val.len() == 2);
                                 for com in index_ver.deps.get(val[0]) {
                                     let (cray, req_range) = from_dep(com, name, version);
@@ -455,11 +452,8 @@ impl<'c> DependencyProvider for Index<'c> {
                     found_name = true;
                     for val in &**vals {
                         if val.contains('/') {
-                            let val: Vec<&str> = val
-                                .trim_start_matches("dep:")
-                                .split(['/', '?'])
-                                .filter(|s| !s.is_empty())
-                                .collect();
+                            let val: Vec<&str> =
+                                val.split(['/', '?']).filter(|s| !s.is_empty()).collect();
                             assert!(val.len() == 2);
                             for com in index_ver.deps.get(val[0]) {
                                 let (cray, req_range) = from_dep(com, name, version);
@@ -476,7 +470,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         } else {
                             deps_insert(
                                 &mut deps,
-                                package.with_features(val.trim_start_matches("dep:")),
+                                package.with_features(val),
                                 SemverPubgrub::singleton(version.clone()),
                             );
                         }
@@ -491,7 +485,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     return Ok(Dependencies::Available(deps));
                 }
 
-                for dep in index_ver.deps.get(*feat) {
+                for dep in index_ver.deps.get(feat.trim_start_matches("dep:")) {
                     if dep.optional {
                         if dep.kind == DependencyKind::Dev {
                             continue;
