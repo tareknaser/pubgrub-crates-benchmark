@@ -9,7 +9,6 @@
         deps: [
             (
                 name: "test-i",
-                package_name: "test-i",
             ),
         ],
     ),
@@ -19,7 +18,6 @@
         deps: [
             (
                 name: "a",
-                package_name: "a",
             ),
         ],
     ),

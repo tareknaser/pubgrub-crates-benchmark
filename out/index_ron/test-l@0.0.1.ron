@@ -5,7 +5,6 @@
         deps: [
             (
                 name: "alloc",
-                package_name: "alloc",
                 req: "^1.0.0",
                 optional: true,
             ),
@@ -22,11 +21,9 @@
     ),
     (
         name: "test-l",
-        vers: "0.0.1",
         deps: [
             (
                 name: "rustix",
-                package_name: "rustix",
                 req: "^0.38.31",
                 default_features: true,
             ),

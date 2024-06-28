@@ -1,7 +1,6 @@
 [
     (
         name: "log",
-        vers: "0.0.1",
     ),
     (
         name: "test-g",
@@ -13,7 +12,6 @@
         deps: [
             (
                 name: "log",
-                package_name: "log",
                 optional: true,
             ),
             (

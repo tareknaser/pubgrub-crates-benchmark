@@ -5,7 +5,6 @@
         deps: [
             (
                 name: "borsh-derive",
-                package_name: "borsh-derive",
                 req: "^1.0",
                 optional: true,
             ),
@@ -20,7 +19,6 @@
         deps: [
             (
                 name: "borsh",
-                package_name: "borsh",
                 req: "^1.0",
                 features: [
                     "borsh-derive",
@@ -36,11 +34,9 @@
     ),
     (
         name: "test-k",
-        vers: "0.0.1",
         deps: [
             (
                 name: "rust_decimal",
-                package_name: "rust_decimal",
                 req: "^1.0",
                 default_features: true,
             ),

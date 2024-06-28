@@ -9,24 +9,84 @@ fn is_default<D: Default + PartialEq>(t: &D) -> bool {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
+
+struct RawIndexDependency<'da> {
+    name: &'da str,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    package_name: &'da str,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    req: semver::VersionReq,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    features: Vec<&'da str>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    default_features: bool,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    kind: crates_index::DependencyKind,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    optional: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Dependency {
     pub name: InternedString,
     pub package_name: InternedString,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub req: Intern<semver::VersionReq>,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub features: Intern<Vec<InternedString>>,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub default_features: bool,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub kind: crates_index::DependencyKind,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub optional: bool,
+}
+
+impl<'da> From<RawIndexDependency<'da>> for Dependency {
+    fn from(value: RawIndexDependency<'da>) -> Self {
+        Self {
+            name: value.name.into(),
+            package_name: if !is_default(&value.package_name) {
+                value.package_name.into()
+            } else {
+                value.name.into()
+            },
+            req: value.req.into(),
+            features: value
+                .features
+                .iter()
+                .map(|s| InternedString::new(s))
+                .collect::<Vec<_>>()
+                .into(),
+            default_features: value.default_features,
+            kind: value.kind,
+            optional: value.optional,
+        }
+    }
+}
+
+impl<'a> Into<RawIndexDependency<'static>> for &'a Dependency {
+    fn into(self) -> RawIndexDependency<'static> {
+        RawIndexDependency {
+            name: self.name.as_str(),
+            package_name: if self.name != self.package_name {
+                self.package_name.as_str()
+            } else {
+                Default::default()
+            },
+            req: (&*self.req).clone(),
+            features: self
+                .features
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .into(),
+            default_features: self.default_features,
+            kind: self.kind,
+            optional: self.optional,
+        }
+    }
 }
 
 impl TryFrom<&crates_index::Dependency> for Dependency {
@@ -51,9 +111,7 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
     }
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-#[serde(from = "Vec<Dependency>")]
-#[serde(into = "Vec<Dependency>")]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct DependencyList {
     deps: BTreeMap<InternedString, Intern<Vec<Dependency>>>,
 }
@@ -72,11 +130,11 @@ impl DependencyList {
     }
 }
 
-impl From<Vec<Dependency>> for DependencyList {
-    fn from(value: Vec<Dependency>) -> Self {
+impl<'da> From<Vec<RawIndexDependency<'da>>> for DependencyList {
+    fn from(value: Vec<RawIndexDependency<'da>>) -> Self {
         let mut deps: BTreeMap<InternedString, Vec<Dependency>> = BTreeMap::new();
         for dep in value {
-            deps.entry(dep.name).or_default().push(dep);
+            deps.entry(dep.name.into()).or_default().push(dep.into());
         }
         DependencyList {
             deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
@@ -84,48 +142,108 @@ impl From<Vec<Dependency>> for DependencyList {
     }
 }
 
-impl Into<Vec<Dependency>> for DependencyList {
-    fn into(self) -> Vec<Dependency> {
+impl Into<Vec<RawIndexDependency<'static>>> for DependencyList {
+    fn into(self) -> Vec<RawIndexDependency<'static>> {
         self.deps
             .iter()
             .flat_map(|(_, v)| v.iter())
-            .cloned()
+            .map(|d| d.into())
             .collect()
     }
 }
 
+fn default_semver_version_for_serde() -> semver::Version {
+    semver::Version::new(0, 0, 1)
+}
+
+fn is_default_semver_version_for_serde(t: &semver::Version) -> bool {
+    t == &default_semver_version_for_serde()
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct RawIndexVersion<'da> {
+    name: &'da str,
+    #[serde(skip_serializing_if = "is_default_semver_version_for_serde")]
+    #[serde(default = "default_semver_version_for_serde")]
+    vers: semver::Version,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    deps: Vec<RawIndexDependency<'da>>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    features: BTreeMap<&'da str, BTreeSet<&'da str>>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    links: Option<&'da str>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    yanked: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(from = "RawIndexVersion")]
+#[serde(into = "RawIndexVersion")]
 pub struct Version {
     pub name: InternedString,
     pub vers: Intern<semver::Version>,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub deps: DependencyList,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub links: Option<InternedString>,
-    #[serde(skip_serializing_if = "is_default")]
-    #[serde(default)]
     pub yanked: bool,
+}
+
+impl<'da> From<RawIndexVersion<'da>> for Version {
+    fn from(value: RawIndexVersion<'da>) -> Self {
+        Self {
+            name: value.name.into(),
+            vers: value.vers.into(),
+            deps: value.deps.into(),
+            features: value
+                .features
+                .iter()
+                .map(|(&k, v)| (k.into(), Intern::new(v.iter().map(|&s| s.into()).collect())))
+                .collect::<BTreeMap<_, _>>()
+                .into(),
+            links: value.links.map(|s| s.into()),
+            yanked: value.yanked,
+        }
+    }
+}
+
+impl Into<RawIndexVersion<'static>> for Version {
+    fn into(self) -> RawIndexVersion<'static> {
+        RawIndexVersion {
+            name: self.name.as_str(),
+            vers: (&*self.vers).clone(),
+            deps: self.deps.into(),
+            features: self
+                .features
+                .iter()
+                .map(|(&k, v)| (k.as_str(), v.iter().map(|s| s.as_str()).collect()))
+                .collect(),
+            links: self.links.map(|s| s.as_str()),
+            yanked: self.yanked,
+        }
+    }
 }
 
 impl TryFrom<&crates_index::Version> for Version {
     type Error = semver::Error;
 
     fn try_from(ver: &crates_index::Version) -> Result<Self, Self::Error> {
-        let deps: Result<Vec<_>, _> = ver
-            .dependencies()
-            .iter()
-            .map(|d| TryInto::<Dependency>::try_into(d))
-            .collect();
+        let mut deps: BTreeMap<InternedString, Vec<Dependency>> = BTreeMap::new();
+        for dep in ver.dependencies() {
+            deps.entry(dep.name().into())
+                .or_default()
+                .push(dep.try_into()?);
+        }
 
         Ok(Version {
             name: ver.name().into(),
             vers: ver.version().parse::<semver::Version>()?.into(),
-            deps: deps?.into(),
+            deps: DependencyList {
+                deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
+            },
             features: Intern::new(
                 ver.features()
                     .iter()

@@ -75,6 +75,31 @@ fn check<'c>(
 }
 
 #[test]
+fn serde_round_trip() {
+    // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
+    let mut faild: Vec<_> = vec![];
+    for case in std::fs::read_dir("out/index_ron").unwrap() {
+        let case = case.unwrap().path();
+        let file_name = case.file_name().unwrap().to_string_lossy().to_string();
+        eprintln!("Running: {file_name}");
+        let raw_data = std::fs::read_to_string(&case).unwrap();
+        let data: Vec<index_data::Version> = ron::de::from_str(&raw_data).unwrap();
+        let raw_data_2 = ron::ser::to_string_pretty(&data, PrettyConfig::new()).unwrap();
+        let crates_1 = read_test_file(data);
+        let data_2: Vec<index_data::Version> = ron::de::from_str(&raw_data_2).unwrap();
+        let crates_2 = read_test_file(data_2);
+        if crates_1 != crates_2 {
+            faild.push(file_name);
+        } else if raw_data != raw_data_2 {
+            let mut file = File::create(&case).unwrap();
+            file.write_all(raw_data_2.as_bytes()).unwrap();
+            file.flush().unwrap();
+        }
+    }
+    assert_eq!(faild.as_slice(), &Vec::<String>::new());
+}
+
+#[test]
 fn named_from_files_pass_tests() {
     // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
     let mut faild: Vec<_> = vec![];

@@ -5,12 +5,10 @@
         deps: [
             (
                 name: "iced_wgpu",
-                package_name: "iced_wgpu",
                 optional: true,
             ),
             (
                 name: "iced_wgpu",
-                package_name: "iced_wgpu",
                 features: [
                     "webgl",
                 ],
@@ -32,11 +30,9 @@
     ),
     (
         name: "test-c",
-        vers: "0.0.1",
         deps: [
             (
                 name: "iced",
-                package_name: "iced",
                 default_features: true,
             ),
         ],

@@ -5,17 +5,14 @@
         deps: [
             (
                 name: "test-j",
-                package_name: "test-j",
             ),
         ],
     ),
     (
         name: "test-j",
-        vers: "0.0.1",
         deps: [
             (
                 name: "js-sys",
-                package_name: "js-sys",
             ),
         ],
         links: Some("wasm_bindgen"),

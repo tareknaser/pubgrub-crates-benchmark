@@ -12,7 +12,6 @@
         deps: [
             (
                 name: "syn",
-                package_name: "syn",
                 features: [
                     "proc-macro",
                 ],
@@ -25,7 +24,6 @@
         deps: [
             (
                 name: "proc-macro2",
-                package_name: "proc-macro2",
             ),
         ],
         features: {
@@ -36,11 +34,9 @@
     ),
     (
         name: "test-f",
-        vers: "0.0.1",
         deps: [
             (
                 name: "serde_derive",
-                package_name: "serde_derive",
                 req: "^1.0",
             ),
         ],

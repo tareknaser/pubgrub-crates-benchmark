@@ -5,18 +5,15 @@
         deps: [
             (
                 name: "c",
-                package_name: "c",
                 optional: true,
             ),
         ],
     ),
     (
         name: "test-h",
-        vers: "0.0.1",
         deps: [
             (
                 name: "b",
-                package_name: "b",
             ),
         ],
         features: {

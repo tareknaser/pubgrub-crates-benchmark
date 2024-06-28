@@ -9,7 +9,6 @@
         deps: [
             (
                 name: "memchr",
-                package_name: "memchr",
                 optional: true,
             ),
         ],
@@ -25,7 +24,6 @@
         deps: [
             (
                 name: "regex",
-                package_name: "regex",
                 default_features: true,
             ),
         ],
@@ -36,28 +34,23 @@
         deps: [
             (
                 name: "regex",
-                package_name: "regex",
                 req: "^1.5",
             ),
             (
                 name: "regex",
-                package_name: "regex",
                 req: "^1",
                 kind: build,
             ),
             (
                 name: "sv-parser",
-                package_name: "sv-parser",
             ),
         ],
     ),
     (
         name: "test-e",
-        vers: "0.0.1",
         deps: [
             (
                 name: "svlint",
-                package_name: "svlint",
             ),
         ],
     ),

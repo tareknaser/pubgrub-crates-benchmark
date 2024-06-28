@@ -5,7 +5,6 @@
         deps: [
             (
                 name: "smallvec",
-                package_name: "smallvec",
                 req: "^1.6.1",
             ),
         ],
@@ -16,11 +15,9 @@
     ),
     (
         name: "test-d",
-        vers: "0.0.1",
         deps: [
             (
                 name: "tokio",
-                package_name: "tokio",
                 default_features: true,
             ),
         ],
@@ -31,7 +28,6 @@
         deps: [
             (
                 name: "parking_lot_core",
-                package_name: "parking_lot_core",
                 optional: true,
             ),
         ],
