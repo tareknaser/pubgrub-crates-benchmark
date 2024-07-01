@@ -187,6 +187,7 @@ pub struct Version {
     pub name: InternedString,
     pub vers: Intern<semver::Version>,
     pub deps: DependencyList,
+    pub explicitly_named_deps: BTreeSet<InternedString>,
     pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
     pub links: Option<InternedString>,
     pub yanked: bool,
@@ -198,6 +199,13 @@ impl<'da> From<RawIndexVersion<'da>> for Version {
             name: value.name.into(),
             vers: value.vers.into(),
             deps: value.deps.into(),
+            explicitly_named_deps: value
+                .features
+                .values()
+                .flat_map(|f| f.iter())
+                .filter_map(|f| f.strip_prefix("dep:"))
+                .map(|s| s.into())
+                .collect(),
             features: value
                 .features
                 .iter()
@@ -244,6 +252,13 @@ impl TryFrom<&crates_index::Version> for Version {
             deps: DependencyList {
                 deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
             },
+            explicitly_named_deps: ver
+                .features()
+                .values()
+                .flat_map(|f| f.iter())
+                .filter_map(|f| f.strip_prefix("dep:"))
+                .map(|s| s.into())
+                .collect(),
             features: Intern::new(
                 ver.features()
                     .iter()

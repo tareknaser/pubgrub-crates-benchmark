@@ -414,19 +414,13 @@ impl<'c> DependencyProvider for Index<'c> {
                 if all_features {
                     for vals in index_ver.features.values() {
                         for val in &**vals {
-                            if val.contains('/') {
-                                let val: Vec<&str> =
-                                    val.split(['/', '?']).filter(|s| !s.is_empty()).collect();
-                                assert!(val.len() == 2);
-                                for com in index_ver.deps.get(val[0]) {
+                            if let Some((dep, dep_feat)) = val.split_once('/') {
+                                let dep_name = dep.strip_suffix('?').unwrap_or(dep);
+                                for com in index_ver.deps.get(dep_name) {
                                     let (cray, req_range) = from_dep(com, name, version);
-
-                                    if &cray == package {
-                                        return Ok(Dependencies::Unavailable("self dep".into()));
-                                    }
                                     deps_insert(
                                         &mut deps,
-                                        cray.with_features(val[1]),
+                                        cray.with_features(dep_feat),
                                         req_range.clone(),
                                     );
                                 }
@@ -451,11 +445,9 @@ impl<'c> DependencyProvider for Index<'c> {
                 if let Some(vals) = index_ver.features.get(*feat) {
                     found_name = true;
                     for val in &**vals {
-                        if val.contains('/') {
-                            let val: Vec<&str> =
-                                val.split(['/', '?']).filter(|s| !s.is_empty()).collect();
-                            assert!(val.len() == 2);
-                            for com in index_ver.deps.get(val[0]) {
+                        if let Some((dep, dep_feat)) = val.split_once('/') {
+                            let dep_name = dep.strip_suffix('?').unwrap_or(dep);
+                            for com in index_ver.deps.get(dep_name) {
                                 let (cray, req_range) = from_dep(com, name, version);
 
                                 if &cray == package {
@@ -463,13 +455,13 @@ impl<'c> DependencyProvider for Index<'c> {
                                 }
                                 deps_insert(
                                     &mut deps,
-                                    cray.with_features(val[1]),
+                                    cray.with_features(dep_feat),
                                     req_range.clone(),
                                 );
                                 if com.optional {
                                     deps_insert(
                                         &mut deps,
-                                        package.with_features(val[0]),
+                                        package.with_features(dep_name),
                                         SemverPubgrub::singleton(version.clone()),
                                     );
                                 }
@@ -492,31 +484,34 @@ impl<'c> DependencyProvider for Index<'c> {
                     return Ok(Dependencies::Available(deps));
                 }
 
-                for dep in index_ver.deps.get(feat.trim_start_matches("dep:")) {
-                    if dep.optional {
-                        if dep.kind == DependencyKind::Dev {
-                            continue;
-                        }
-                        found_name = true;
-                        let (cray, req_range) = from_dep(&dep, name, version);
+                if !index_ver.explicitly_named_deps.contains(*feat) {
+                    for dep in index_ver.deps.get(feat.trim_start_matches("dep:")) {
+                        if dep.optional {
+                            if dep.kind == DependencyKind::Dev {
+                                continue;
+                            }
+                            found_name = true;
+                            let (cray, req_range) = from_dep(&dep, name, version);
 
-                        if &cray == package {
-                            return Ok(Dependencies::Unavailable("self dep".into()));
-                        }
-                        deps_insert(&mut deps, cray.clone(), req_range.clone());
+                            if &cray == package {
+                                return Ok(Dependencies::Unavailable("self dep".into()));
+                            }
+                            deps_insert(&mut deps, cray.clone(), req_range.clone());
 
-                        if dep.default_features {
-                            deps_insert(
-                                &mut deps,
-                                cray.with_features("default"),
-                                req_range.clone(),
-                            );
-                        }
-                        for f in &*dep.features {
-                            deps_insert(&mut deps, cray.with_features(f), req_range.clone());
+                            if dep.default_features {
+                                deps_insert(
+                                    &mut deps,
+                                    cray.with_features("default"),
+                                    req_range.clone(),
+                                );
+                            }
+                            for f in &*dep.features {
+                                deps_insert(&mut deps, cray.with_features(f), req_range.clone());
+                            }
                         }
                     }
                 }
+
                 if found_name {
                     Dependencies::Available(deps)
                 } else {
