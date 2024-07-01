@@ -18,7 +18,7 @@ use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ProgressBar, ProgressFinish, ProgressIterator, ProgressStyle};
 use itertools::Itertools as _;
-use names::{from_dep, new_bucket, new_links, new_wide, Names};
+use names::{from_dep, new_bucket, new_links, new_wide, FeatureNamespace, Names};
 use pubgrub::{
     error::PubGrubError,
     solver::resolve,
@@ -199,7 +199,7 @@ impl<'c> Index<'c> {
             }
         }
 
-        let mut vertions: HashMap<(&str, SemverCompatibility), (semver::Version, BTreeSet<&str>)> =
+        let mut vertions: HashMap<(&str, SemverCompatibility), (semver::Version, BTreeSet<_>)> =
             HashMap::new();
         // Identify the selected packages
         for (names, ver) in pubmap {
@@ -227,7 +227,7 @@ impl<'c> Index<'c> {
                 if &old_val.0 != ver {
                     return false;
                 }
-                let old_feat = old_val.1.insert(feat);
+                let old_feat = old_val.1.insert(feat.to_string());
                 if !old_feat {
                     return false;
                 }
@@ -248,7 +248,9 @@ impl<'c> Index<'c> {
             }
 
             for dep in index_ver.deps.iter() {
-                if dep.optional && !feats.contains(&*dep.name) {
+                if dep.optional
+                    && !(feats.contains(&*dep.name) || feats.contains(&format!("dep:{}", dep.name)))
+                {
                     continue;
                 }
                 if index_ver.features.contains_key(&*dep.name) {
@@ -410,10 +412,18 @@ impl<'c> DependencyProvider for Index<'c> {
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
                     if dep.default_features {
-                        deps_insert(&mut deps, cray.with_features("default"), req_range.clone());
+                        deps_insert(
+                            &mut deps,
+                            cray.with_features(FeatureNamespace::new("default")),
+                            req_range.clone(),
+                        );
                     }
                     for f in &*dep.features {
-                        deps_insert(&mut deps, cray.with_features(f), req_range.clone());
+                        deps_insert(
+                            &mut deps,
+                            cray.with_features(FeatureNamespace::new(f)),
+                            req_range.clone(),
+                        );
                     }
                 }
                 if all_features {
@@ -425,7 +435,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                     let (cray, req_range) = from_dep(com, name, version);
                                     deps_insert(
                                         &mut deps,
-                                        cray.with_features(dep_feat),
+                                        cray.with_features(FeatureNamespace::new(dep_feat)),
                                         req_range.clone(),
                                     );
                                 }
@@ -445,75 +455,83 @@ impl<'c> DependencyProvider for Index<'c> {
                     new_bucket(name, version.into(), false),
                     SemverPubgrub::singleton(version.clone()),
                 );
-                let mut found_name = false;
 
-                if let Some(vals) = index_ver.features.get(*feat) {
-                    found_name = true;
-                    for val in &**vals {
-                        if let Some((dep, dep_feat)) = val.split_once('/') {
-                            let dep_name = dep.strip_suffix('?').unwrap_or(dep);
-                            for com in index_ver.deps.get(dep_name) {
-                                let (cray, req_range) = from_dep(com, name, version);
+                if let Some(feat) = feat.as_feat() {
+                    if let Some(vals) = index_ver.features.get(feat) {
+                        for val in &**vals {
+                            if let Some((dep, dep_feat)) = val.split_once('/') {
+                                let dep_name = dep.strip_suffix('?').unwrap_or(dep);
+                                for com in index_ver.deps.get(dep_name) {
+                                    let (cray, req_range) = from_dep(com, name, version);
 
-                                if &cray == package {
-                                    return Ok(Dependencies::Unavailable("self dep: features".into()));
-                                }
-                                deps_insert(
-                                    &mut deps,
-                                    cray.with_features(dep_feat),
-                                    req_range.clone(),
-                                );
-                                if com.optional {
+                                    if &cray == package {
+                                        return Ok(Dependencies::Unavailable(
+                                            "self dep: features".into(),
+                                        ));
+                                    }
                                     deps_insert(
                                         &mut deps,
-                                        package.with_features(dep_name),
-                                        SemverPubgrub::singleton(version.clone()),
+                                        cray.with_features(FeatureNamespace::Feat(dep_feat)),
+                                        req_range.clone(),
                                     );
+                                    if com.optional {
+                                        deps_insert(
+                                            &mut deps,
+                                            package.with_features(FeatureNamespace::Dep(dep_name)),
+                                            SemverPubgrub::singleton(version.clone()),
+                                        );
+                                    }
                                 }
-                            }
-                        } else {
-                            deps_insert(
-                                &mut deps,
-                                package.with_features(val),
-                                SemverPubgrub::singleton(version.clone()),
-                            );
-                        }
-                    }
-                }
-                if *feat == "default" {
-                    // if "default" was specified it would be in features
-                    found_name = true;
-                }
-
-                if found_name {
-                    return Ok(Dependencies::Available(deps));
-                }
-
-                if !index_ver.explicitly_named_deps.contains(*feat) {
-                    for dep in index_ver.deps.get(feat.trim_start_matches("dep:")) {
-                        if dep.optional {
-                            if dep.kind == DependencyKind::Dev {
-                                continue;
-                            }
-                            found_name = true;
-                            let (cray, req_range) = from_dep(&dep, name, version);
-
-                            if &cray == package {
-                                return Ok(Dependencies::Unavailable("self dep: dep features".into()));
-                            }
-                            deps_insert(&mut deps, cray.clone(), req_range.clone());
-
-                            if dep.default_features {
+                            } else {
                                 deps_insert(
                                     &mut deps,
-                                    cray.with_features("default"),
-                                    req_range.clone(),
+                                    package.with_features(FeatureNamespace::new(val)),
+                                    SemverPubgrub::singleton(version.clone()),
                                 );
                             }
-                            for f in &*dep.features {
-                                deps_insert(&mut deps, cray.with_features(f), req_range.clone());
-                            }
                         }
+                        return Ok(Dependencies::Available(deps));
+                    }
+                    if feat == "default" {
+                        // if "default" was specified it would be in features
+                        return Ok(Dependencies::Available(deps));
+                    }
+                    if index_ver.explicitly_named_deps.contains(feat) {
+                        return Ok(Dependencies::Unavailable(
+                            "no matching feat (dep not a feat becuse of dep:)".into(),
+                        ));
+                    }
+                }
+
+                let mut found_name = false;
+                for dep in index_ver.deps.get(feat.as_str()) {
+                    if !dep.optional {
+                        continue;
+                    }
+                    if dep.kind == DependencyKind::Dev {
+                        continue;
+                    }
+                    found_name = true;
+                    let (cray, req_range) = from_dep(&dep, name, version);
+
+                    if &cray == package {
+                        return Ok(Dependencies::Unavailable("self dep in deps feats".into()));
+                    }
+                    deps_insert(&mut deps, cray.clone(), req_range.clone());
+
+                    if dep.default_features {
+                        deps_insert(
+                            &mut deps,
+                            cray.with_features(FeatureNamespace::new("default")),
+                            req_range.clone(),
+                        );
+                    }
+                    for f in &*dep.features {
+                        deps_insert(
+                            &mut deps,
+                            cray.with_features(FeatureNamespace::new(f)),
+                            req_range.clone(),
+                        );
                     }
                 }
 
@@ -544,7 +562,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         SemverPubgrub::singleton(version.clone()),
                     ),
                     (
-                        new_bucket(name, compatibility, false).with_features(feat),
+                        new_bucket(name, compatibility, false).with_features(*feat),
                         range,
                     ),
                 ]))

@@ -5,10 +5,61 @@ use semver_pubgrub::{SemverCompatibility, SemverPubgrub};
 
 use crate::index_data::Dependency;
 
+#[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub enum FeatureNamespace<'c> {
+    Dep(&'c str),
+    Feat(&'c str),
+}
+
+impl<'c> FeatureNamespace<'c> {
+    pub fn new(feat: &'c str) -> Self {
+        if let Some(feat) = feat.strip_prefix("dep:") {
+            FeatureNamespace::Dep(feat)
+        } else {
+            FeatureNamespace::Feat(feat)
+        }
+    }
+    pub fn as_str(&self) -> &'c str {
+        match self {
+            FeatureNamespace::Dep(n) => n,
+            FeatureNamespace::Feat(n) => n,
+        }
+    }
+    pub fn as_feat(&self) -> Option<&'c str> {
+        match self {
+            FeatureNamespace::Dep(_) => None,
+            FeatureNamespace::Feat(n) => Some(n),
+        }
+    }
+}
+impl<'c> std::fmt::Display for FeatureNamespace<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if matches!(self, FeatureNamespace::Dep(_)) {
+            f.write_str("dep:")?;
+        }
+        f.write_str(&self.as_str())
+    }
+}
+
+impl std::fmt::Debug for FeatureNamespace<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl serde::Serialize for FeatureNamespace<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Names<'c> {
     Bucket(&'c str, SemverCompatibility, bool),
-    BucketFeatures(&'c str, SemverCompatibility, &'c str),
+    BucketFeatures(&'c str, SemverCompatibility, FeatureNamespace<'c>),
     Wide(
         &'c str,
         &'c semver::VersionReq,
@@ -20,7 +71,7 @@ pub enum Names<'c> {
         &'c semver::VersionReq,
         &'c str,
         SemverCompatibility,
-        &'c str,
+        FeatureNamespace<'c>,
     ),
     Links(&'c str),
 }
@@ -58,12 +109,7 @@ pub fn from_dep<'c>(
         )
     } else {
         (
-            new_wide(
-                dep.package_name.as_str(),
-                &dep.req,
-                from,
-                compat.into(),
-            ),
+            new_wide(dep.package_name.as_str(), &dep.req, from, compat.into()),
             SemverPubgrub::full(),
         )
     }
@@ -133,7 +179,7 @@ impl<'c> Names<'c> {
             Names::Links(_) => panic!(),
         }
     }
-    pub fn with_features(&self, feat: &'c str) -> Rc<Self> {
+    pub fn with_features(&self, feat: FeatureNamespace<'c>) -> Rc<Self> {
         Rc::new(match self {
             Names::Bucket(a, b, _) => Names::BucketFeatures(*a, *b, feat),
             Names::BucketFeatures(a, b, _) => Names::BucketFeatures(*a, *b, feat),
@@ -161,7 +207,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 }
                 Ok(())
             }
-            Names::BucketFeatures(n, m, o) => {
+            Names::BucketFeatures(n, m, feat) => {
                 f.write_str("Bucket:")?;
                 f.write_str(n)?;
                 f.write_str("@")?;
@@ -171,7 +217,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                     SemverCompatibility::Patch(i) => format!("0.0.{}", i),
                 })?;
                 f.write_str("/")?;
-                f.write_str(o)
+                feat.fmt(f)
             }
             Names::Wide(c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
@@ -201,7 +247,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str("):")?;
                 f.write_str(&range.to_string())?;
                 f.write_str("/")?;
-                f.write_str(feat)
+                feat.fmt(f)
             }
             Names::Links(name) => {
                 f.write_str("Links:")?;
