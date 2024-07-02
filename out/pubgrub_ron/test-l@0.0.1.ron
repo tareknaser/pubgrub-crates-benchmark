@@ -1,15 +1,15 @@
 {
     "Bucket:rustix@0.38.x/alloc": {
-        "0.38.34": {
+        "0.38.34": Ok({
             "Bucket:rustix@0.38.x": (
                 normal: [
                     (Included("0.38.34"), Included("0.38.34")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:rustix@0.38.x/default": {
-        "0.38.34": {
+        "0.38.34": Ok({
             "Bucket:rustix@0.38.x/alloc": (
                 normal: [
                     (Included("0.38.34"), Included("0.38.34")),
@@ -20,13 +20,13 @@
                     (Included("0.38.34"), Included("0.38.34")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:rustix@0.38.x": {
-        "0.38.34": {},
+        "0.38.34": Ok({}),
     },
     "Bucket:test-l@0.0.1/All-FEATURES": {
-        "0.0.1": {
+        "0.0.1": Ok({
             "Bucket:rustix@0.38.x": (
                 normal: [
                     (Included("0.38.31"), Excluded("0.39.0")),
@@ -37,6 +37,6 @@
                     (Included("0.38.31"), Excluded("0.39.0")),
                 ],
             ),
-        },
+        }),
     },
 }

@@ -87,7 +87,7 @@ impl<'c> Index<'c> {
     }
 
     fn make_pubgrub_ron_file(&self) {
-        let mut dependency_provider: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
+        let mut dependency_provider: BTreeMap<_, BTreeMap<_, Result<_, _>>> = BTreeMap::new();
         let deps = self
             .pubgrub_dependencies
             .borrow()
@@ -103,14 +103,19 @@ impl<'c> Index<'c> {
         };
 
         for (package, version) in &deps {
-            if let Dependencies::Available(dependencies) =
-                self.get_dependencies(package, version).unwrap()
-            {
-                *dependency_provider
-                    .entry(package.clone())
-                    .or_default()
-                    .entry(version.clone())
-                    .or_default() = dependencies.clone();
+            match self.get_dependencies(package, version).unwrap() {
+                Dependencies::Unavailable(s) => {
+                    dependency_provider
+                        .entry(package.clone())
+                        .or_default()
+                        .insert(version.clone(), Err(s));
+                }
+                Dependencies::Available(dependencies) => {
+                    dependency_provider
+                        .entry(package.clone())
+                        .or_default()
+                        .insert(version.clone(), Ok(dependencies));
+                }
             }
         }
 
@@ -376,7 +381,7 @@ impl<'c> DependencyProvider for Index<'c> {
             &Names::Bucket(name, _major, all_features) => {
                 let index_ver = &self.get_crate(name)[version];
                 if index_ver.yanked {
-                    return Ok(Dependencies::Unavailable("yanked".into()));
+                    return Ok(Dependencies::Unavailable("yanked: Bucket".into()));
                 }
                 let mut deps = DependencyConstraints::default();
                 if let Some(link) = &index_ver.links {
@@ -400,7 +405,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     let (cray, req_range) = from_dep(&dep, name, version);
 
                     if &cray == package {
-                        return Ok(Dependencies::Unavailable("self dep".into()));
+                        return Ok(Dependencies::Unavailable("self dep: Bucket".into()));
                     }
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
@@ -433,7 +438,7 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::BucketFeatures(name, _major, feat) => {
                 let index_ver = &self.get_crate(*name)[version];
                 if index_ver.yanked {
-                    return Ok(Dependencies::Unavailable("yanked".into()));
+                    return Ok(Dependencies::Unavailable("yanked: BucketFeatures".into()));
                 }
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
@@ -451,7 +456,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                 let (cray, req_range) = from_dep(com, name, version);
 
                                 if &cray == package {
-                                    return Ok(Dependencies::Unavailable("self dep".into()));
+                                    return Ok(Dependencies::Unavailable("self dep: features".into()));
                                 }
                                 deps_insert(
                                     &mut deps,
@@ -494,7 +499,7 @@ impl<'c> DependencyProvider for Index<'c> {
                             let (cray, req_range) = from_dep(&dep, name, version);
 
                             if &cray == package {
-                                return Ok(Dependencies::Unavailable("self dep".into()));
+                                return Ok(Dependencies::Unavailable("self dep: dep features".into()));
                             }
                             deps_insert(&mut deps, cray.clone(), req_range.clone());
 

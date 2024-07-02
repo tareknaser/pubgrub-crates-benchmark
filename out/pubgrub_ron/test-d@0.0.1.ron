@@ -1,6 +1,6 @@
 {
     "Range:tokio(From:test-d@0.0.1):*/default": {
-        "1.0.0": {
+        "1.0.0": Ok({
             "Bucket:tokio@1.x.y/default": (
                 normal: [
                     (Included("1.0.0-0"), Excluded("2.0.0-0")),
@@ -11,28 +11,28 @@
                     (Included("1.0.0"), Included("1.0.0")),
                 ],
             ),
-        },
+        }),
     },
     "Range:parking_lot_core(From:tokio@1.x.y):*": {
-        "0.9.0": {
+        "0.9.0": Ok({
             "Bucket:parking_lot_core@0.9.x": (
                 normal: [
                     (Included("0.9.0-0"), Excluded("0.10.0-0")),
                 ],
             ),
-        },
+        }),
     },
     "Range:tokio(From:test-d@0.0.1):*": {
-        "1.0.0": {
+        "1.0.0": Ok({
             "Bucket:tokio@1.x.y": (
                 normal: [
                     (Included("1.0.0-0"), Excluded("2.0.0-0")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:tokio@1.x.y/default": {
-        "1.35.1": {
+        "1.35.1": Ok({
             "Bucket:tokio@1.x.y/parking_lot_core": (
                 normal: [
                     (Included("1.35.1"), Included("1.35.1")),
@@ -43,10 +43,10 @@
                     (Included("1.35.1"), Included("1.35.1")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:tokio@1.x.y/parking_lot_core": {
-        "1.35.1": {
+        "1.35.1": Ok({
             "Range:parking_lot_core(From:tokio@1.x.y):*": (
                 normal: [
                     (Unbounded, Unbounded),
@@ -60,19 +60,19 @@
                     (Included("1.35.1"), Included("1.35.1")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:parking_lot_core@0.9.x": {
-        "0.9.9": {
+        "0.9.9": Ok({
             "Bucket:smallvec@1.x.y": (
                 normal: [
                     (Included("1.6.1"), Excluded("2.0.0")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:test-d@0.0.1/All-FEATURES": {
-        "0.0.1": {
+        "0.0.1": Ok({
             "Range:tokio(From:test-d@0.0.1):*/default": (
                 normal: [
                     (Unbounded, Unbounded),
@@ -89,9 +89,9 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:tokio@1.x.y": {
-        "1.35.1": {},
+        "1.35.1": Ok({}),
     },
 }

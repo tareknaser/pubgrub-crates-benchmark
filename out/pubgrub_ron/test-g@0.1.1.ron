@@ -1,21 +1,21 @@
 {
     "Range:log(From:test-g@0.1.x):*": {
-        "0.0.1": {
+        "0.0.1": Ok({
             "Bucket:log@0.0.1": (
                 normal: [
                     (Included("0.0.1-0"), Excluded("0.0.2-0")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:log@0.0.1": {
-        "0.0.1": {},
+        "0.0.1": Ok({}),
     },
     "Bucket:test-g@0.1.x": {
-        "0.1.0": {},
+        "0.1.0": Ok({}),
     },
     "Bucket:test-g@0.1.x/All-FEATURES": {
-        "0.1.1": {
+        "0.1.1": Ok({
             "Bucket:test-g@0.1.x": (
                 normal: [
                     (Included("0.1.0"), Excluded("0.1.1")),
@@ -29,6 +29,6 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-        },
+        }),
     },
 }

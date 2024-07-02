@@ -1,6 +1,9 @@
 {
+    "Bucket:ureq@2.x.y/c": {
+        "2.9.7": Err("no matching feat"),
+    },
     "Bucket:test-o@0.1.x/All-FEATURES": {
-        "0.1.0": {
+        "0.1.0": Ok({
             "Bucket:ureq@2.x.y/c": (
                 normal: [
                     (Included("2.0.0"), Excluded("3.0.0")),
@@ -11,9 +14,9 @@
                     (Included("2.0.0"), Excluded("3.0.0")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:ureq@2.x.y": {
-        "2.9.7": {},
+        "2.9.7": Ok({}),
     },
 }

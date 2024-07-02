@@ -1,15 +1,15 @@
 {
     "Range:svlint(From:test-e@0.0.1):*": {
-        "0.5.0": {
+        "0.5.0": Ok({
             "Bucket:svlint@0.5.x": (
                 normal: [
                     (Included("0.5.0-0"), Excluded("0.6.0-0")),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:svlint@0.5.x": {
-        "0.5.6": {
+        "0.5.6": Ok({
             "Bucket:regex@1.x.y": (
                 normal: [
                     (Included("1.5.0"), Excluded("2.0.0")),
@@ -23,10 +23,10 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-        },
+        }),
     },
     "Bucket:test-e@0.0.1/All-FEATURES": {
-        "0.0.1": {
+        "0.0.1": Ok({
             "Range:svlint(From:test-e@0.0.1):*": (
                 normal: [
                     (Unbounded, Unbounded),
@@ -35,6 +35,6 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-        },
+        }),
     },
 }
