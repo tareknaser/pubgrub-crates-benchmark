@@ -48,9 +48,9 @@
     },
     "Bucket:syn@0.0.1/quote": {
         "0.0.1": Ok({
-            "Bucket:quote@0.0.1": (
+            "Bucket:syn@0.0.1/dep:quote": (
                 normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
+                    (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
             "Bucket:syn@0.0.1": (

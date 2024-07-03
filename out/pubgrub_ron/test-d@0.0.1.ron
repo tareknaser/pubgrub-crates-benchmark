@@ -31,6 +31,23 @@
             ),
         }),
     },
+    "Bucket:tokio@1.x.y/dep:parking_lot_core": {
+        "1.35.1": Ok({
+            "Range:parking_lot_core(From:tokio@1.x.y):*": (
+                normal: [
+                    (Unbounded, Unbounded),
+                ],
+                pre: [
+                    (Unbounded, Unbounded),
+                ],
+            ),
+            "Bucket:tokio@1.x.y": (
+                normal: [
+                    (Included("1.35.1"), Included("1.35.1")),
+                ],
+            ),
+        }),
+    },
     "Bucket:tokio@1.x.y/default": {
         "1.35.1": Ok({
             "Bucket:tokio@1.x.y/parking_lot_core": (
@@ -47,12 +64,9 @@
     },
     "Bucket:tokio@1.x.y/parking_lot_core": {
         "1.35.1": Ok({
-            "Range:parking_lot_core(From:tokio@1.x.y):*": (
+            "Bucket:tokio@1.x.y/dep:parking_lot_core": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
+                    (Included("1.35.1"), Included("1.35.1")),
                 ],
             ),
             "Bucket:tokio@1.x.y": (

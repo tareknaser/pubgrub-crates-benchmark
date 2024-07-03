@@ -25,12 +25,6 @@ impl<'c> FeatureNamespace<'c> {
             FeatureNamespace::Feat(n) => n,
         }
     }
-    pub fn as_feat(&self) -> Option<&'c str> {
-        match self {
-            FeatureNamespace::Dep(_) => None,
-            FeatureNamespace::Feat(n) => Some(n),
-        }
-    }
 }
 impl<'c> std::fmt::Display for FeatureNamespace<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

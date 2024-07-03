@@ -22,7 +22,7 @@
             ),
         }),
     },
-    "Bucket:b@0.3.x/c": {
+    "Bucket:b@0.3.x/dep:c": {
         "0.3.7": Ok({
             "Bucket:b@0.3.x": (
                 normal: [
@@ -38,6 +38,23 @@
                 ],
             ),
         }),
+    },
+    "Bucket:b@0.3.x/c": {
+        "0.3.7": Ok({
+            "Bucket:b@0.3.x": (
+                normal: [
+                    (Included("0.3.7"), Included("0.3.7")),
+                ],
+            ),
+            "Bucket:b@0.3.x/dep:c": (
+                normal: [
+                    (Included("0.3.7"), Included("0.3.7")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:b@0.3.x": {
+        "0.3.7": Ok({}),
     },
     "Bucket:test-h@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

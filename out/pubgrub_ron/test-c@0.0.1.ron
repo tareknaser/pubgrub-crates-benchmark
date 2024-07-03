@@ -45,6 +45,31 @@
             ),
         }),
     },
+    "Bucket:iced@0.4.x/dep:iced_wgpu": {
+        "0.4.2": Ok({
+            "Range:iced_wgpu(From:iced@0.4.x):*/webgl": (
+                normal: [
+                    (Unbounded, Unbounded),
+                ],
+                pre: [
+                    (Unbounded, Unbounded),
+                ],
+            ),
+            "Range:iced_wgpu(From:iced@0.4.x):*": (
+                normal: [
+                    (Unbounded, Unbounded),
+                ],
+                pre: [
+                    (Unbounded, Unbounded),
+                ],
+            ),
+            "Bucket:iced@0.4.x": (
+                normal: [
+                    (Included("0.4.2"), Included("0.4.2")),
+                ],
+            ),
+        }),
+    },
     "Bucket:iced@0.4.x/default": {
         "0.4.2": Ok({
             "Bucket:iced@0.4.x/iced_wgpu": (
@@ -61,20 +86,9 @@
     },
     "Bucket:iced@0.4.x/iced_wgpu": {
         "0.4.2": Ok({
-            "Range:iced_wgpu(From:iced@0.4.x):*/webgl": (
+            "Bucket:iced@0.4.x/dep:iced_wgpu": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
-            "Range:iced_wgpu(From:iced@0.4.x):*": (
-                normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
+                    (Included("0.4.2"), Included("0.4.2")),
                 ],
             ),
             "Bucket:iced@0.4.x": (

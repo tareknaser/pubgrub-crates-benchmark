@@ -199,8 +199,10 @@ impl<'c> Index<'c> {
             }
         }
 
-        let mut vertions: HashMap<(&str, SemverCompatibility), (semver::Version, BTreeSet<_>)> =
-            HashMap::new();
+        let mut vertions: HashMap<
+            (&str, SemverCompatibility),
+            (semver::Version, BTreeSet<_>, BTreeSet<_>),
+        > = HashMap::new();
         // Identify the selected packages
         for (names, ver) in pubmap {
             if let Names::Bucket(name, cap, is_root) = &**names {
@@ -210,14 +212,17 @@ impl<'c> Index<'c> {
                 if *is_root {
                     continue;
                 }
-                let old_val = vertions.insert((*name, *cap), (ver.clone(), BTreeSet::new()));
+                let old_val = vertions.insert(
+                    (*name, *cap),
+                    (ver.clone(), BTreeSet::new(), BTreeSet::new()),
+                );
 
                 if old_val.is_some() {
                     return false;
                 }
             }
         }
-        // Identify the selected package features
+        // Identify the selected package features and deps
         for (name, ver) in pubmap {
             if let Names::BucketFeatures(name, cap, feat) = &**name {
                 if cap != &SemverCompatibility::from(ver) {
@@ -227,7 +232,10 @@ impl<'c> Index<'c> {
                 if &old_val.0 != ver {
                     return false;
                 }
-                let old_feat = old_val.1.insert(feat.to_string());
+                let old_feat = match *feat {
+                    FeatureNamespace::Feat(f) => old_val.1.insert(f),
+                    FeatureNamespace::Dep(f) => old_val.2.insert(f),
+                };
                 if !old_feat {
                     return false;
                 }
@@ -235,7 +243,7 @@ impl<'c> Index<'c> {
         }
 
         let mut links: BTreeSet<_> = BTreeSet::new();
-        for ((name, _), (ver, feats)) in vertions.iter() {
+        for ((name, _), (ver, _feats, deps)) in vertions.iter() {
             let index_ver = &self.get_crate(*name)[ver];
             if index_ver.yanked {
                 return false;
@@ -248,9 +256,7 @@ impl<'c> Index<'c> {
             }
 
             for dep in index_ver.deps.iter() {
-                if dep.optional
-                    && !(feats.contains(&*dep.name) || feats.contains(&format!("dep:{}", dep.name)))
-                {
+                if dep.optional && !deps.contains(&*dep.name) {
                     continue;
                 }
                 if index_ver.features.contains_key(&*dep.name) {
@@ -261,22 +267,23 @@ impl<'c> Index<'c> {
                 }
 
                 // Check for something that meets that dep
-                let fulfilled =
-                    vertions
-                        .iter()
-                        .find(|((other_name, _), (other_ver, other_feats))| {
-                            **other_name == *dep.package_name
-                                && dep.req.matches(other_ver)
-                                && dep
-                                    .features
-                                    .iter()
-                                    .all(|f| f.is_empty() || other_feats.contains(&**f))
-                                && (!dep.default_features || other_feats.contains("default"))
-                        });
+                let fulfilled = vertions.iter().find(
+                    |((other_name, _), (other_ver, other_feats, _other_deps))| {
+                        **other_name == *dep.package_name
+                            && dep.req.matches(other_ver)
+                            && dep
+                                .features
+                                .iter()
+                                .all(|f| f.is_empty() || other_feats.contains(&**f))
+                            && (!dep.default_features || other_feats.contains("default"))
+                    },
+                );
                 if fulfilled.is_none() {
                     return false;
                 }
             }
+
+            // todo: check index_ver.features
         }
         true
     }
@@ -414,7 +421,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     if dep.default_features {
                         deps_insert(
                             &mut deps,
-                            cray.with_features(FeatureNamespace::new("default")),
+                            cray.with_features(FeatureNamespace::Feat("default")),
                             req_range.clone(),
                         );
                     }
@@ -445,10 +452,12 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
                 Dependencies::Available(deps)
             }
-            Names::BucketFeatures(name, _major, feat) => {
+            Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
                 let index_ver = &self.get_crate(*name)[version];
                 if index_ver.yanked {
-                    return Ok(Dependencies::Unavailable("yanked: BucketFeatures".into()));
+                    return Ok(Dependencies::Unavailable(
+                        "yanked: BucketFeatures Feat".into(),
+                    ));
                 }
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
@@ -456,55 +465,73 @@ impl<'c> DependencyProvider for Index<'c> {
                     SemverPubgrub::singleton(version.clone()),
                 );
 
-                if let Some(feat) = feat.as_feat() {
-                    if let Some(vals) = index_ver.features.get(feat) {
-                        for val in &**vals {
-                            if let Some((dep, dep_feat)) = val.split_once('/') {
-                                let dep_name = dep.strip_suffix('?').unwrap_or(dep);
-                                for com in index_ver.deps.get(dep_name) {
-                                    let (cray, req_range) = from_dep(com, name, version);
+                if let Some(vals) = index_ver.features.get(*feat) {
+                    for val in &**vals {
+                        if let Some((dep, dep_feat)) = val.split_once('/') {
+                            let dep_name = dep.strip_suffix('?').unwrap_or(dep);
+                            for com in index_ver.deps.get(dep_name) {
+                                let (cray, req_range) = from_dep(com, name, version);
 
-                                    if &cray == package {
-                                        return Ok(Dependencies::Unavailable(
-                                            "self dep: features".into(),
-                                        ));
-                                    }
-                                    deps_insert(
-                                        &mut deps,
-                                        cray.with_features(FeatureNamespace::Feat(dep_feat)),
-                                        req_range.clone(),
-                                    );
-                                    if com.optional {
-                                        deps_insert(
-                                            &mut deps,
-                                            package.with_features(FeatureNamespace::Dep(dep_name)),
-                                            SemverPubgrub::singleton(version.clone()),
-                                        );
-                                    }
+                                if &cray == package {
+                                    return Ok(Dependencies::Unavailable(
+                                        "self dep: features".into(),
+                                    ));
                                 }
-                            } else {
                                 deps_insert(
                                     &mut deps,
-                                    package.with_features(FeatureNamespace::new(val)),
-                                    SemverPubgrub::singleton(version.clone()),
+                                    cray.with_features(FeatureNamespace::Feat(dep_feat)),
+                                    req_range.clone(),
                                 );
+                                if com.optional {
+                                    deps_insert(
+                                        &mut deps,
+                                        package.with_features(FeatureNamespace::Dep(dep_name)),
+                                        SemverPubgrub::singleton(version.clone()),
+                                    );
+                                }
                             }
+                        } else {
+                            deps_insert(
+                                &mut deps,
+                                package.with_features(FeatureNamespace::new(val)),
+                                SemverPubgrub::singleton(version.clone()),
+                            );
                         }
-                        return Ok(Dependencies::Available(deps));
                     }
-                    if feat == "default" {
-                        // if "default" was specified it would be in features
-                        return Ok(Dependencies::Available(deps));
-                    }
-                    if index_ver.explicitly_named_deps.contains(feat) {
-                        return Ok(Dependencies::Unavailable(
-                            "no matching feat (dep not a feat becuse of dep:)".into(),
-                        ));
-                    }
+                    return Ok(Dependencies::Available(deps));
                 }
+                if *feat == "default" {
+                    // if "default" was specified it would be in features
+                    return Ok(Dependencies::Available(deps));
+                }
+                if index_ver.explicitly_named_deps.contains(*feat) {
+                    return Ok(Dependencies::Unavailable(
+                        "no matching feat (dep not a feat becuse of dep:)".into(),
+                    ));
+                }
+                deps_insert(
+                    &mut deps,
+                    package.with_features(FeatureNamespace::Dep(feat)),
+                    SemverPubgrub::singleton(version.clone()),
+                );
+
+                Dependencies::Available(deps)
+            }
+            Names::BucketFeatures(name, _major, FeatureNamespace::Dep(feat)) => {
+                let index_ver = &self.get_crate(*name)[version];
+                if index_ver.yanked {
+                    return Ok(Dependencies::Unavailable(
+                        "yanked: BucketFeatures Dep".into(),
+                    ));
+                }
+                let mut deps = DependencyConstraints::default();
+                deps.insert(
+                    new_bucket(name, version.into(), false),
+                    SemverPubgrub::singleton(version.clone()),
+                );
 
                 let mut found_name = false;
-                for dep in index_ver.deps.get(feat.as_str()) {
+                for dep in index_ver.deps.get(*feat) {
                     if !dep.optional {
                         continue;
                     }
@@ -522,7 +549,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     if dep.default_features {
                         deps_insert(
                             &mut deps,
-                            cray.with_features(FeatureNamespace::new("default")),
+                            cray.with_features(FeatureNamespace::Feat("default")),
                             req_range.clone(),
                         );
                     }
