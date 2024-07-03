@@ -468,7 +468,10 @@ impl<'c> DependencyProvider for Index<'c> {
                 if let Some(vals) = index_ver.features.get(*feat) {
                     for val in &**vals {
                         if let Some((dep, dep_feat)) = val.split_once('/') {
-                            let dep_name = dep.strip_suffix('?').unwrap_or(dep);
+                            let dep_name = dep.strip_suffix('?');
+                            let week = dep_name.is_some();
+                            let dep_name = dep_name.unwrap_or(dep);
+
                             for com in index_ver.deps.get(dep_name) {
                                 let (cray, req_range) = from_dep(com, name, version);
 
@@ -477,18 +480,29 @@ impl<'c> DependencyProvider for Index<'c> {
                                         "self dep: features".into(),
                                     ));
                                 }
-                                deps_insert(
-                                    &mut deps,
-                                    cray.with_features(FeatureNamespace::Feat(dep_feat)),
-                                    req_range.clone(),
-                                );
                                 if com.optional {
                                     deps_insert(
                                         &mut deps,
                                         package.with_features(FeatureNamespace::Dep(dep_name)),
                                         SemverPubgrub::singleton(version.clone()),
                                     );
+
+                                    if !week
+                                        && dep_name != *feat
+                                        && index_ver.features.contains_key(dep_name)
+                                    {
+                                        deps_insert(
+                                            &mut deps,
+                                            package.with_features(FeatureNamespace::Feat(dep_name)),
+                                            SemverPubgrub::singleton(version.clone()),
+                                        );
+                                    }
                                 }
+                                deps_insert(
+                                    &mut deps,
+                                    cray.with_features(FeatureNamespace::Feat(dep_feat)),
+                                    req_range.clone(),
+                                );
                             }
                         } else {
                             deps_insert(

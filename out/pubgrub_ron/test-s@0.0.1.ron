@@ -1,79 +1,112 @@
 {
-    "Bucket:quote@0.0.1/proc-macro": {
+    "Bucket:a@0.0.1/dep:b": {
         "0.0.1": Ok({
-            "Bucket:quote@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-        }),
-    },
-    "Bucket:syn@0.0.1/dep:quote": {
-        "0.0.1": Ok({
-            "Bucket:quote@0.0.1": (
+            "Bucket:b@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:syn@0.0.1": (
+            "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
     },
-    "Bucket:syn@0.0.1/default": {
+    "Bucket:a@0.0.1/dep:x": {
         "0.0.1": Ok({
-            "Bucket:syn@0.0.1/dep:quote": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-            "Bucket:syn@0.0.1/quote": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-            "Bucket:quote@0.0.1/proc-macro": (
+            "Bucket:x@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:syn@0.0.1": (
+            "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
     },
-    "Bucket:syn@0.0.1/quote": {
+    "Bucket:a@0.0.1/b": {
         "0.0.1": Ok({
-            "Bucket:syn@0.0.1/dep:quote": (
+            "Bucket:a@0.0.1/dep:b": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:syn@0.0.1": (
+            "Bucket:a@0.0.1/x": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
     },
-    "Bucket:quote@0.0.1": {
+    "Bucket:a@0.0.1/default": {
+        "0.0.1": Ok({
+            "Bucket:a@0.0.1/dep:b": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:a@0.0.1/b": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:b@0.0.1/native": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:a@0.0.1/x": {
+        "0.0.1": Ok({
+            "Bucket:a@0.0.1/dep:x": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:b@0.0.1/native": {
+        "0.0.1": Ok({
+            "Bucket:b@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:a@0.0.1": {
         "0.0.1": Ok({}),
     },
-    "Bucket:syn@0.0.1": {
+    "Bucket:b@0.0.1": {
         "0.0.1": Ok({}),
     },
-    "Bucket:test-r@0.0.1/All-FEATURES": {
+    "Bucket:test-s@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:syn@0.0.1/default": (
+            "Bucket:a@0.0.1/default": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:syn@0.0.1": (
+            "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
