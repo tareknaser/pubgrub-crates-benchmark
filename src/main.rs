@@ -51,6 +51,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
     cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
+    past_result: Option<HashMap<InternedString, Vec<semver::Version>>>,
     dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
     pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
@@ -65,6 +66,7 @@ impl<'c> Index<'c> {
         Self {
             crates,
             cargo_crates,
+            past_result: None,
             pubgrub_dependencies: Default::default(),
             dependencies: Default::default(),
             start: Cell::new(Instant::now()),
@@ -77,6 +79,7 @@ impl<'c> Index<'c> {
     }
 
     fn reset(&mut self) {
+        self.past_result = None;
         self.dependencies.get_mut().clear();
         self.pubgrub_dependencies.get_mut().clear();
         *self.start.get_mut() = Instant::now();
@@ -126,13 +129,7 @@ impl<'c> Index<'c> {
     }
 
     fn make_index_ron_file(&self) {
-        let mut grub_deps = self
-            .pubgrub_dependencies
-            .borrow()
-            .iter()
-            .cloned()
-            .collect_vec();
-        grub_deps.sort_unstable();
+        let grub_deps = self.pubgrub_dependencies.borrow();
         let deps = self.dependencies.borrow();
 
         let name = grub_deps
@@ -140,14 +137,7 @@ impl<'c> Index<'c> {
             .find(|(name, _)| matches!(&**name, Names::Bucket(_, _, all) if *all))
             .unwrap();
 
-        let name_vers: BTreeSet<_> = grub_deps
-            .iter()
-            .filter_map(|(package, version)| match &**package {
-                Names::Bucket(n, _, _) | Names::BucketFeatures(n, _, _) => Some((*n, version)),
-                _ => None,
-            })
-            .chain(deps.iter().map(|(n, v)| (n.as_str(), v)))
-            .collect();
+        let name_vers: BTreeSet<_> = deps.iter().map(|(n, v)| (n.as_str(), v)).collect();
 
         let out = name_vers
             .into_iter()
@@ -389,6 +379,9 @@ impl<'c> DependencyProvider for Index<'c> {
         Ok(match &**package {
             &Names::Bucket(name, _major, all_features) => {
                 let index_ver = &self.get_crate(name)[version];
+                self.dependencies
+                    .borrow_mut()
+                    .insert((index_ver.name, version.clone()));
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked: Bucket".into()));
                 }
@@ -454,6 +447,9 @@ impl<'c> DependencyProvider for Index<'c> {
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
                 let index_ver = &self.get_crate(*name)[version];
+                self.dependencies
+                    .borrow_mut()
+                    .insert((index_ver.name, version.clone()));
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable(
                         "yanked: BucketFeatures Feat".into(),
@@ -668,6 +664,39 @@ fn process_carte_version<'c>(
         dp.make_index_ron_file();
         println!("failed to match cargo {root:?}");
     }
+    let mut cargo_check_pub_lock_res = false;
+    let mut cargo_check_pub_lock_time = 0.0;
+    if res.is_ok() {
+        dp.past_result = res
+            .as_ref()
+            .map(|map| {
+                let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
+                for (k, v) in map.iter() {
+                    if k.is_real() {
+                        results
+                            .entry(k.crate_().into())
+                            .or_default()
+                            .push(v.clone());
+                    }
+                }
+                results
+            })
+            .ok();
+        dp.reset_time();
+        let cargo_check_pub_lock_out = cargo_resolver::resolve(crt, &ver, dp);
+        cargo_check_pub_lock_time = dp.duration();
+        cargo_check_pub_lock_res = cargo_check_pub_lock_out.is_ok();
+
+        let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
+            .as_ref()
+            .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+            == &Err(true);
+
+        if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+            dp.make_index_ron_file();
+            println!("failed to match pub lock cargo {root:?}");
+        }
+    }
 
     OutPutSummery {
         name: crt,
@@ -681,7 +710,10 @@ fn process_carte_version<'c>(
             .unwrap_or(0),
         cargo_time: cargo_duration,
         cargo_res: cargo_out.is_ok(),
+        cyclic_package_dependency,
         cargo_deps: cargo_out.as_ref().map(|r| r.iter().count()).unwrap_or(0),
+        cargo_check_pub_lock_time,
+        cargo_check_pub_lock_res,
     }
 }
 
@@ -695,7 +727,10 @@ struct OutPutSummery {
     deps: usize,
     cargo_time: f32,
     cargo_res: bool,
+    cyclic_package_dependency: bool,
     cargo_deps: usize,
+    cargo_check_pub_lock_time: f32,
+    cargo_check_pub_lock_res: bool,
 }
 
 #[cfg(test)]
@@ -720,13 +755,20 @@ fn main() {
         let start = Instant::now();
         let mut cpu_time = 0.0;
         let mut cargo_cpu_time = 0.0;
+        let mut cargo_pub_lock_cpu_time = 0.0;
         for row in rx {
             cpu_time += row.time;
             cargo_cpu_time += row.cargo_time;
+            cargo_pub_lock_cpu_time += row.cargo_check_pub_lock_time;
             out_file.serialize(row).unwrap();
         }
         out_file.flush().unwrap();
-        (cpu_time, cargo_cpu_time, start.elapsed().as_secs_f32())
+        (
+            cpu_time,
+            cargo_cpu_time,
+            cargo_pub_lock_cpu_time,
+            start.elapsed().as_secs_f32(),
+        )
     });
 
     let template = "PubGrub: [Time: {elapsed}, Rate: {per_sec}, Remaining: {eta}] {wide_bar} {pos:>6}/{len:6}: {percent:>3}%";
@@ -752,11 +794,12 @@ fn main() {
         .flat_map(|(c, v)| v.iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
         .map(|(crt, ver)| process_carte_version(&mut dp, crt, ver.clone()))
-        .for_each(|csv_line| {
+        .for_each(move |csv_line| {
             let _ = tx.send(csv_line);
         });
 
-    let (cpu_time, cargo_cpu_time, wall_time) = file_handle.join().unwrap();
+    let (cpu_time, cargo_cpu_time, cargo_pub_lock_cpu_time, wall_time) =
+        file_handle.join().unwrap();
     println!(
         "CPU time: {:.2}s == {:.2}min == {:.2}hr",
         cpu_time,
@@ -768,6 +811,12 @@ fn main() {
         cargo_cpu_time,
         cargo_cpu_time / 60.0,
         cargo_cpu_time / 3600.0
+    );
+    println!(
+        "Cargo check lock CPU time: {:.2}s == {:.2}min == {:.2}hr",
+        cargo_pub_lock_cpu_time,
+        cargo_pub_lock_cpu_time / 60.0,
+        cargo_pub_lock_cpu_time / 3600.0
     );
     println!(
         "Wall time: {:.2}s == {:.2}min == {:.2}hr",

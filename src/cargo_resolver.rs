@@ -21,17 +21,30 @@ impl<'a> Registry for crate::Index<'a> {
         f: &mut dyn FnMut(IndexSummary),
     ) -> Poll<CargoResult<()>> {
         if let Some(by_name) = self.cargo_crates.get(&dep.package_name()) {
-            for summary in by_name.values() {
-                let matched = match kind {
-                    QueryKind::Exact => dep.matches(&summary),
-                    QueryKind::Alternatives => true,
-                    QueryKind::Normalized => true,
-                };
-                if matched {
-                    self.dependencies
-                        .borrow_mut()
-                        .insert((dep.package_name(), summary.version().clone()));
-                    f(IndexSummary::Candidate(summary.clone()));
+            if let Some(past_result) = &self.past_result {
+                for past_ver in past_result.get(&dep.package_name()).into_iter().flatten() {
+                    if let Some(summary) = by_name.get(past_ver) {
+                        if dep.matches(&summary) {
+                            self.dependencies
+                                .borrow_mut()
+                                .insert((dep.package_name(), summary.version().clone()));
+                            f(IndexSummary::Candidate(summary.clone()));
+                        }
+                    }
+                }
+            } else {
+                for summary in by_name.values() {
+                    let matched = match kind {
+                        QueryKind::Exact => dep.matches(&summary),
+                        QueryKind::Alternatives => true,
+                        QueryKind::Normalized => true,
+                    };
+                    if matched {
+                        self.dependencies
+                            .borrow_mut()
+                            .insert((dep.package_name(), summary.version().clone()));
+                        f(IndexSummary::Candidate(summary.clone()));
+                    }
                 }
             }
         }

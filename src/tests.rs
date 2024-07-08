@@ -70,6 +70,34 @@ fn check<'c>(
         if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
             return false;
         }
+        if res.is_ok() {
+            dp.past_result = res
+                .as_ref()
+                .map(|map| {
+                    let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
+                    for (k, v) in map.iter() {
+                        if k.is_real() {
+                            results
+                                .entry(k.crate_().into())
+                                .or_default()
+                                .push(v.clone());
+                        }
+                    }
+                    results
+                })
+                .ok();
+            dp.reset_time();
+            let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+
+            let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
+                .as_ref()
+                .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+                == &Err(true);
+
+            if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+                return false;
+            }
+        }
     }
     true
 }
