@@ -51,7 +51,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
     cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
-    past_result: Option<HashMap<InternedString, Vec<semver::Version>>>,
+    past_result: Option<HashMap<InternedString, HashSet<semver::Version>>>,
     dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
     pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
@@ -165,23 +165,37 @@ impl<'c> Index<'c> {
         file.flush().unwrap();
     }
 
-    fn get_crate<Q>(&self, name: &Q) -> &'c BTreeMap<semver::Version, index_data::Version>
+    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &'c semver::Version> + '_
     where
-        Q: ?Sized,
+        Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
-        Q: Hash + Eq,
     {
-        static EMPTY: BTreeMap<semver::Version, index_data::Version> = BTreeMap::new();
-        self.crates.get(name).unwrap_or(&EMPTY)
+        let past = self.past_result.as_ref().map(|p| p.get(name));
+        self.crates
+            .get(name)
+            .into_iter()
+            .flat_map(|m| m.keys())
+            .rev()
+            .filter(move |&v| {
+                let Some(past) = past else {
+                    return true;
+                };
+                let Some(past) = past else {
+                    return false;
+                };
+                past.contains(v)
+            })
     }
 
-    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &'c semver::Version>
+    fn get_version<Q>(&self, name: &Q, ver: &semver::Version) -> Option<&'c index_data::Version>
     where
-        Q: ?Sized,
+        Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
-        Q: Hash + Eq,
     {
-        self.get_crate(name).keys().rev()
+        if let Some(past) = &self.past_result {
+            past.get(name)?.get(ver)?;
+        }
+        self.crates.get(name)?.get(ver)
     }
 
     #[must_use]
@@ -249,7 +263,7 @@ impl<'c> Index<'c> {
 
         let mut links: BTreeSet<_> = BTreeSet::new();
         for ((name, _), (ver, _feats, deps)) in vertions.iter() {
-            let index_ver = &self.get_crate(*name)[ver];
+            let index_ver = self.get_version(*name, ver).unwrap();
             if index_ver.yanked {
                 return false;
             }
@@ -393,7 +407,7 @@ impl<'c> DependencyProvider for Index<'c> {
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
             &Names::Bucket(name, _major, all_features) => {
-                let index_ver = &self.get_crate(name)[version];
+                let index_ver = self.get_version(name, version).unwrap();
                 self.dependencies
                     .borrow_mut()
                     .insert((index_ver.name, version.clone()));
@@ -461,7 +475,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
-                let index_ver = &self.get_crate(*name)[version];
+                let index_ver = self.get_version(*name, version).unwrap();
                 self.dependencies
                     .borrow_mut()
                     .insert((index_ver.name, version.clone()));
@@ -546,7 +560,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Dep(feat)) => {
-                let index_ver = &self.get_crate(*name)[version];
+                let index_ver = self.get_version(*name, version).unwrap();
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable(
                         "yanked: BucketFeatures Dep".into(),
@@ -685,13 +699,13 @@ fn process_carte_version<'c>(
         dp.past_result = res
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
                 for (k, v) in map.iter() {
                     if k.is_real() {
                         results
                             .entry(k.crate_().into())
                             .or_default()
-                            .push(v.clone());
+                            .insert(v.clone());
                     }
                 }
                 results
@@ -713,6 +727,33 @@ fn process_carte_version<'c>(
         }
     }
 
+    let mut pub_check_cargo_lock_res = false;
+    let mut pub_check_cargo_lock_time = 0.0;
+    if cargo_out.is_ok() {
+        dp.past_result = cargo_out
+            .as_ref()
+            .map(|map| {
+                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                for v in map.iter() {
+                    results
+                        .entry(v.name())
+                        .or_default()
+                        .insert(v.version().clone());
+                }
+                results
+            })
+            .ok();
+        dp.reset_time();
+        let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
+        pub_check_cargo_lock_time = dp.duration();
+        pub_check_cargo_lock_res = pub_check_cargo_lock_out.is_ok();
+
+        if !pub_check_cargo_lock_out.is_ok() {
+            dp.make_index_ron_file();
+            println!("failed to match cargo lock pub {root:?}");
+        }
+    }
+
     OutPutSummery {
         name: crt,
         ver,
@@ -729,6 +770,8 @@ fn process_carte_version<'c>(
         cargo_deps: cargo_out.as_ref().map(|r| r.iter().count()).unwrap_or(0),
         cargo_check_pub_lock_time,
         cargo_check_pub_lock_res,
+        pub_check_cargo_lock_time,
+        pub_check_cargo_lock_res,
     }
 }
 
@@ -746,6 +789,8 @@ struct OutPutSummery {
     cargo_deps: usize,
     cargo_check_pub_lock_time: f32,
     cargo_check_pub_lock_res: bool,
+    pub_check_cargo_lock_time: f32,
+    pub_check_cargo_lock_res: bool,
 }
 
 #[cfg(test)]
@@ -768,20 +813,23 @@ fn main() {
     let file_handle = spawn(|| {
         let mut out_file = csv::Writer::from_path("out.csv").unwrap();
         let start = Instant::now();
-        let mut cpu_time = 0.0;
+        let mut pub_cpu_time = 0.0;
         let mut cargo_cpu_time = 0.0;
         let mut cargo_pub_lock_cpu_time = 0.0;
+        let mut pub_cargo_lock_cpu_time = 0.0;
         for row in rx {
-            cpu_time += row.time;
+            pub_cpu_time += row.time;
             cargo_cpu_time += row.cargo_time;
             cargo_pub_lock_cpu_time += row.cargo_check_pub_lock_time;
+            pub_cargo_lock_cpu_time += row.pub_check_cargo_lock_time;
             out_file.serialize(row).unwrap();
         }
         out_file.flush().unwrap();
         (
-            cpu_time,
+            pub_cpu_time,
             cargo_cpu_time,
             cargo_pub_lock_cpu_time,
+            pub_cargo_lock_cpu_time,
             start.elapsed().as_secs_f32(),
         )
     });
@@ -801,30 +849,28 @@ fn main() {
             let _ = tx.send(csv_line);
         });
 
-    let (cpu_time, cargo_cpu_time, cargo_pub_lock_cpu_time, wall_time) =
+    let (pub_cpu_time, cargo_cpu_time, cargo_pub_lock_cpu_time, pub_cargo_lock_cpu_time, wall_time) =
         file_handle.join().unwrap();
-    println!(
-        "CPU time: {:.2}s == {:.2}min == {:.2}hr",
-        cpu_time,
-        cpu_time / 60.0,
-        cpu_time / 3600.0
-    );
-    println!(
-        "Cargo CPU time: {:.2}s == {:.2}min == {:.2}hr",
-        cargo_cpu_time,
-        cargo_cpu_time / 60.0,
-        cargo_cpu_time / 3600.0
-    );
-    println!(
-        "Cargo check lock CPU time: {:.2}s == {:.2}min == {:.2}hr",
-        cargo_pub_lock_cpu_time,
-        cargo_pub_lock_cpu_time / 60.0,
-        cargo_pub_lock_cpu_time / 3600.0
-    );
-    println!(
-        "Wall time: {:.2}s == {:.2}min == {:.2}hr",
-        wall_time,
-        wall_time / 60.0,
-        wall_time / 3600.0
-    );
+    let p = |t: f32| {
+        println!(
+            " time: {:.2}s == {:.2}min == {:.2}hr",
+            t,
+            t / 60.0,
+            t / 3600.0
+        )
+    };
+    print!("Pub CPU");
+    p(pub_cpu_time);
+
+    print!("Cargo CPU");
+    p(cargo_cpu_time);
+
+    print!("Cargo check lock CPU");
+    p(cargo_pub_lock_cpu_time);
+
+    print!("Pub check lock CPU");
+    p(pub_cargo_lock_cpu_time);
+
+    print!("Wall");
+    p(wall_time);
 }

@@ -50,13 +50,13 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         dp.past_result = res
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
                 for (k, v) in map.iter() {
                     if k.is_real() {
                         results
                             .entry(k.crate_().into())
                             .or_default()
-                            .push(v.clone());
+                            .insert(v.clone());
                     }
                 }
                 results
@@ -71,6 +71,27 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             == &Err(true);
 
         if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+            return false;
+        }
+    }
+    if cargo_out.is_ok() {
+        dp.past_result = cargo_out
+            .as_ref()
+            .map(|map| {
+                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                for v in map.iter() {
+                    results
+                        .entry(v.name())
+                        .or_default()
+                        .insert(v.version().clone());
+                }
+                results
+            })
+            .ok();
+        dp.reset_time();
+        let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
+
+        if !pub_check_cargo_lock_out.is_ok() {
             return false;
         }
     }
