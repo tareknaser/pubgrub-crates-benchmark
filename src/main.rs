@@ -472,15 +472,18 @@ impl<'c> DependencyProvider for Index<'c> {
                             let week = dep_name.is_some();
                             let dep_name = dep_name.unwrap_or(dep);
 
-                            for com in index_ver.deps.get(dep_name) {
-                                let (cray, req_range) = from_dep(com, name, version);
+                            for dep in index_ver.deps.get(dep_name) {
+                                if dep.kind == DependencyKind::Dev {
+                                    continue;
+                                }
+                                let (cray, req_range) = from_dep(dep, name, version);
 
                                 if &cray == package {
                                     return Ok(Dependencies::Unavailable(
                                         "self dep: features".into(),
                                     ));
                                 }
-                                if com.optional {
+                                if dep.optional {
                                     deps_insert(
                                         &mut deps,
                                         package.with_features(FeatureNamespace::Dep(dep_name)),
