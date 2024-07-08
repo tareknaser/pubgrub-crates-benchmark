@@ -61,8 +61,18 @@ struct Index<'c> {
 impl<'c> Index<'c> {
     pub fn new(
         crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
-        cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
     ) -> Self {
+        let cargo_crates = crates
+            .iter()
+            .map(|(n, vs)| {
+                (
+                    n.clone(),
+                    vs.iter()
+                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
+                        .collect(),
+                )
+            })
+            .collect();
         Self {
             crates,
             cargo_crates,
@@ -781,19 +791,7 @@ fn main() {
         .with_style(ProgressStyle::with_template(template).unwrap())
         .with_finish(ProgressFinish::AndLeave);
 
-    let mut dp = Index::new(
-        data,
-        data.iter()
-            .map(|(n, vs)| {
-                (
-                    n.clone(),
-                    vs.iter()
-                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
-                        .collect(),
-                )
-            })
-            .collect(),
-    );
+    let mut dp = Index::new(data);
 
     data.iter()
         .flat_map(|(c, v)| v.iter().map(|(v, _)| (c.clone(), v)))

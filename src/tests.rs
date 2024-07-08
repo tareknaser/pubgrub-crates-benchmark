@@ -10,32 +10,14 @@ fn case_from_file_name(file_name: &str) -> (&str, semver::Version) {
 
 fn crates_data_from_file<P: AsRef<Path>>(
     path: P,
-) -> (
-    HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
-    Result<HashMap<InternedString, BTreeMap<semver::Version, Summary>>, anyhow::Error>,
-) {
+) -> HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
     let data = std::fs::read_to_string(path).unwrap();
     let data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
-    let crates = read_test_file(data);
-    let cargo_crates = crates
-        .iter()
-        .map(|(n, vs)| {
-            vs.iter()
-                .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
-                .collect::<Result<_, _>>()
-                .map(|d| (n.clone(), d))
-        })
-        .collect::<Result<_, _>>();
-    (crates, cargo_crates)
+    read_test_file(data)
 }
 
 #[must_use]
-fn check<'c>(
-    dp: &mut Index<'c>,
-    root: Rc<Names<'c>>,
-    ver: &semver::Version,
-    run_cargo: bool,
-) -> bool {
+fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> bool {
     dp.reset();
     let res = resolve(dp, root.clone(), ver.clone());
     match res.as_ref() {
@@ -53,52 +35,46 @@ fn check<'c>(
         }
     }
 
-    if run_cargo
-        && dp
-            .cargo_crates
-            .get(root.crate_())
-            .is_some_and(|n| n.contains_key(ver))
-    {
-        let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+    let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
-        // TODO: check for cyclic package dependency!
-        let cyclic_package_dependency = &cargo_out
+    // TODO: check for cyclic package dependency!
+    let cyclic_package_dependency = &cargo_out
+        .as_ref()
+        .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+        == &Err(true);
+
+    if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
+        return false;
+    }
+    if res.is_ok() {
+        dp.past_result = res
+            .as_ref()
+            .map(|map| {
+                let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
+                for (k, v) in map.iter() {
+                    if k.is_real() {
+                        results
+                            .entry(k.crate_().into())
+                            .or_default()
+                            .push(v.clone());
+                    }
+                }
+                results
+            })
+            .ok();
+        dp.reset_time();
+        let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+
+        let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
             .as_ref()
             .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
             == &Err(true);
 
-        if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
+        if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
             return false;
         }
-        if res.is_ok() {
-            dp.past_result = res
-                .as_ref()
-                .map(|map| {
-                    let mut results: HashMap<InternedString, Vec<semver::Version>> = HashMap::new();
-                    for (k, v) in map.iter() {
-                        if k.is_real() {
-                            results
-                                .entry(k.crate_().into())
-                                .or_default()
-                                .push(v.clone());
-                        }
-                    }
-                    results
-                })
-                .ok();
-            dp.reset_time();
-            let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
-
-            let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
-                .as_ref()
-                .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-                == &Err(true);
-
-            if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
-                return false;
-            }
-        }
     }
+
     true
 }
 
@@ -137,11 +113,10 @@ fn named_from_files_pass_tests() {
         let (name, ver) = case_from_file_name(&file_name);
         eprintln!("Running: {name} @ {ver}");
         let start_time = std::time::Instant::now();
-        let (crates, cargo_crates) = crates_data_from_file(&case);
-        let run_cargo = cargo_crates.is_ok();
-        let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+        let crates = crates_data_from_file(&case);
+        let mut dp = Index::new(&crates);
         let root = new_bucket(&name, (&ver).into(), true);
-        if !check(&mut dp, root, &ver, run_cargo) {
+        if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
             faild.push(file_name.to_string());
         };
@@ -169,19 +144,9 @@ fn named_from_files_pass_without_vers() {
                 let mut small_data = data.clone();
                 small_data.remove(i);
                 let crates = read_test_file(small_data.iter().cloned());
-                let cargo_crates = crates
-                    .iter()
-                    .map(|(n, vs)| {
-                        vs.iter()
-                            .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
-                            .collect::<Result<_, _>>()
-                            .map(|d| (n.clone(), d))
-                    })
-                    .collect::<Result<_, _>>();
-                let run_cargo = cargo_crates.is_ok();
-                let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+                let mut dp = Index::new(&crates);
                 let root = new_bucket(&name, (&ver).into(), true);
-                if !check(&mut dp, root, &ver, run_cargo) {
+                if !check(&mut dp, root, &ver) {
                     data = dp.make_index_ron_data();
                     offset = i;
                     println!("Failed on {i}");
@@ -191,19 +156,9 @@ fn named_from_files_pass_without_vers() {
             break;
         }
         let crates = read_test_file(data);
-        let cargo_crates = crates
-            .iter()
-            .map(|(n, vs)| {
-                vs.iter()
-                    .map(|(v, d)| d.try_into().map(|d| (v.clone(), d)))
-                    .collect::<Result<_, _>>()
-                    .map(|d| (n.clone(), d))
-            })
-            .collect::<Result<_, _>>();
-        let run_cargo = cargo_crates.is_ok();
-        let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+        let mut dp = Index::new(&crates);
         let root = new_bucket(&name, (&ver).into(), true);
-        if !check(&mut dp, root, &ver, run_cargo) {
+        if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
         };
 
@@ -220,13 +175,12 @@ fn all_vers_in_files_pass_tests() {
         let file_name = case.file_name().unwrap().to_string_lossy();
         eprintln!("Running: {file_name}");
         let start_time = std::time::Instant::now();
-        let (crates, cargo_crates) = crates_data_from_file(&case);
-        let run_cargo = cargo_crates.is_ok();
-        let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
+        let crates = crates_data_from_file(&case);
+        let mut dp = Index::new(&crates);
         for (name, vers) in &crates {
             for ver in vers.keys() {
                 let root = new_bucket(&name, ver.into(), true);
-                if !check(&mut dp, root, ver, run_cargo) {
+                if !check(&mut dp, root, ver) {
                     dp.make_index_ron_file();
                     faild.push(format!("{file_name}:{name}@{ver}"));
                 };

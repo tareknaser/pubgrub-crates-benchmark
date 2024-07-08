@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 use std::task::Poll;
 
+use anyhow::bail;
 use cargo::core::dependency::DepKind;
 use cargo::core::resolver::{self, ResolveOpts, VersionPreferences};
 use cargo::core::Resolve;
@@ -69,7 +70,12 @@ pub fn resolve<'c>(
     ver: &semver::Version,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
-    let summary = dp.cargo_crates[&name][ver].clone();
+    let Some(pack) = dp.cargo_crates.get(&name) else {
+        bail!("No package found named '{name}'");
+    };
+    let Some(summary) = pack.get(ver).cloned() else {
+        bail!("No version found for package '{name}@{ver}'");
+    };
     let new_id = summary.package_id().with_source_id(registry_local());
     let summary = summary.override_id(new_id);
     resolver::resolve(
