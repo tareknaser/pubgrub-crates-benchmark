@@ -182,7 +182,7 @@ fn named_from_files_pass_without_vers() {
                 let mut dp = Index::new(&crates, cargo_crates.unwrap_or_default());
                 let root = new_bucket(&name, (&ver).into(), true);
                 if !check(&mut dp, root, &ver, run_cargo) {
-                    data = small_data;
+                    data = dp.make_index_ron_data();
                     offset = i;
                     println!("Failed on {i}");
                     continue 'data;

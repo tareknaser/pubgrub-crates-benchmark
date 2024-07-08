@@ -128,21 +128,26 @@ impl<'c> Index<'c> {
         file.flush().unwrap();
     }
 
+    fn make_index_ron_data(&self) -> Vec<index_data::Version> {
+        let deps = self.dependencies.borrow();
+
+        let name_vers: BTreeSet<_> = deps.iter().map(|(n, v)| (n.as_str(), v)).collect();
+
+        name_vers
+            .into_iter()
+            .map(|(n, version)| self.crates[n][version].clone())
+            .collect()
+    }
+
     fn make_index_ron_file(&self) {
         let grub_deps = self.pubgrub_dependencies.borrow();
-        let deps = self.dependencies.borrow();
 
         let name = grub_deps
             .iter()
             .find(|(name, _)| matches!(&**name, Names::Bucket(_, _, all) if *all))
             .unwrap();
 
-        let name_vers: BTreeSet<_> = deps.iter().map(|(n, v)| (n.as_str(), v)).collect();
-
-        let out = name_vers
-            .into_iter()
-            .map(|(n, version)| self.crates[n][version].clone())
-            .collect_vec();
+        let out = self.make_index_ron_data();
 
         let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
         let mut file = File::create(&file_name).unwrap();
