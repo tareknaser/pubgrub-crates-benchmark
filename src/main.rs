@@ -16,7 +16,7 @@ use std::{
 use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::DependencyKind;
 use hasher::StableHasher;
-use indicatif::{ProgressBar, ProgressFinish, ProgressIterator, ProgressStyle};
+use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
 use itertools::Itertools as _;
 use names::{from_dep, new_bucket, new_links, new_wide, FeatureNamespace, Names};
 use pubgrub::{
@@ -26,6 +26,7 @@ use pubgrub::{
     type_aliases::{DependencyConstraints, SelectedDependencies},
     version_set::VersionSet as _,
 };
+use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
 use ron::ser::PrettyConfig;
 use semver_pubgrub::{SemverCompatibility, SemverPubgrub};
 
@@ -839,12 +840,21 @@ fn main() {
         .with_style(ProgressStyle::with_template(template).unwrap())
         .with_finish(ProgressFinish::AndLeave);
 
-    let mut dp = Index::new(data);
+    thread_local! {
+        static DP: RefCell<Option<Index<'static>>> = RefCell::new( None);
+    }
 
-    data.iter()
-        .flat_map(|(c, v)| v.iter().map(|(v, _)| (c.clone(), v)))
+    data.par_iter()
+        .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
-        .map(|(crt, ver)| process_carte_version(&mut dp, crt, ver.clone()))
+        .map(|(crt, ver)| {
+            DP.with_borrow_mut(|dp| {
+                if dp.is_none() {
+                    *dp = Some(Index::new(data));
+                }
+                process_carte_version(dp.as_mut().unwrap(), crt, ver.clone())
+            })
+        })
         .for_each(move |csv_line| {
             let _ = tx.send(csv_line);
         });
