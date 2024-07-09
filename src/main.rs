@@ -494,11 +494,6 @@ impl<'c> DependencyProvider for Index<'c> {
                                 }
                                 let (cray, req_range) = from_dep(dep, name, version);
 
-                                if &cray == package {
-                                    return Ok(Dependencies::Unavailable(
-                                        "self dep: features".into(),
-                                    ));
-                                }
                                 if dep.optional {
                                     deps_insert(
                                         &mut deps,
@@ -574,9 +569,6 @@ impl<'c> DependencyProvider for Index<'c> {
                     found_name = true;
                     let (cray, req_range) = from_dep(&dep, name, version);
 
-                    if &cray == package {
-                        return Ok(Dependencies::Unavailable("self dep in deps feats".into()));
-                    }
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
                     if dep.default_features {
