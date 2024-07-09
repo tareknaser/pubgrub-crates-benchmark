@@ -10,7 +10,10 @@ fn case_from_file_name(file_name: &str) -> (&str, semver::Version) {
 
 fn crates_data_from_file<P: AsRef<Path>>(
     path: P,
-) -> HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
+) -> (
+    HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+    HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
+) {
     let data = std::fs::read_to_string(path).unwrap();
     let data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
     read_test_file(data)
@@ -134,8 +137,8 @@ fn named_from_files_pass_tests() {
         let (name, ver) = case_from_file_name(&file_name);
         eprintln!("Running: {name} @ {ver}");
         let start_time = std::time::Instant::now();
-        let crates = crates_data_from_file(&case);
-        let mut dp = Index::new(&crates);
+        let (crates, cargo_crates) = crates_data_from_file(&case);
+        let mut dp = Index::new(&crates, &cargo_crates);
         let root = new_bucket(&name, (&ver).into(), true);
         if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
@@ -164,8 +167,8 @@ fn named_from_files_pass_without_vers() {
                 let i = (i + offset) % data.len();
                 let mut small_data = data.clone();
                 small_data.remove(i);
-                let crates = read_test_file(small_data.iter().cloned());
-                let mut dp = Index::new(&crates);
+                let (crates, cargo_data) = read_test_file(small_data.iter().cloned());
+                let mut dp = Index::new(&crates, &cargo_data);
                 let root = new_bucket(&name, (&ver).into(), true);
                 if !check(&mut dp, root, &ver) {
                     data = dp.make_index_ron_data();
@@ -176,8 +179,8 @@ fn named_from_files_pass_without_vers() {
             }
             break;
         }
-        let crates = read_test_file(data);
-        let mut dp = Index::new(&crates);
+        let(crates, cargo_data) = read_test_file(data);
+        let mut dp = Index::new(&crates, &cargo_data);
         let root = new_bucket(&name, (&ver).into(), true);
         if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
@@ -196,8 +199,8 @@ fn all_vers_in_files_pass_tests() {
         let file_name = case.file_name().unwrap().to_string_lossy();
         eprintln!("Running: {file_name}");
         let start_time = std::time::Instant::now();
-        let crates = crates_data_from_file(&case);
-        let mut dp = Index::new(&crates);
+        let (crates, cargo_crates) = crates_data_from_file(&case);
+        let mut dp = Index::new(&crates, &cargo_crates);
         for (name, vers) in &crates {
             for ver in vers.keys() {
                 let root = new_bucket(&name, ver.into(), true);

@@ -51,7 +51,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 #[derive(Clone)]
 struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
-    cargo_crates: HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
+    cargo_crates: &'c HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
     past_result: Option<HashMap<InternedString, HashSet<semver::Version>>>,
     dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
     pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
@@ -62,18 +62,8 @@ struct Index<'c> {
 impl<'c> Index<'c> {
     pub fn new(
         crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+        cargo_crates: &'c HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
     ) -> Self {
-        let cargo_crates = crates
-            .iter()
-            .map(|(n, vs)| {
-                (
-                    n.clone(),
-                    vs.iter()
-                        .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
-                        .collect(),
-                )
-            })
-            .collect();
         Self {
             crates,
             cargo_crates,
@@ -807,7 +797,7 @@ fn main() {
     let index =
         crates_index::GitIndex::with_path("index", "https://github.com/rust-lang/crates.io-index")
             .unwrap();
-    let data = read_index(&index, create_filter, version_filter);
+    let (data, cargo_crates) = read_index(&index, create_filter, version_filter);
 
     let (tx, rx) = mpsc::channel::<OutPutSummery>();
 
@@ -840,20 +830,11 @@ fn main() {
         .with_style(ProgressStyle::with_template(template).unwrap())
         .with_finish(ProgressFinish::AndLeave);
 
-    thread_local! {
-        static DP: RefCell<Option<Index<'static>>> = RefCell::new( None);
-    }
-
     data.par_iter()
         .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
         .map(|(crt, ver)| {
-            DP.with_borrow_mut(|dp| {
-                if dp.is_none() {
-                    *dp = Some(Index::new(data));
-                }
-                process_carte_version(dp.as_mut().unwrap(), crt, ver.clone())
-            })
+            process_carte_version(&mut Index::new(&data, &cargo_crates), crt, ver.clone())
         })
         .for_each(move |csv_line| {
             let _ = tx.send(csv_line);

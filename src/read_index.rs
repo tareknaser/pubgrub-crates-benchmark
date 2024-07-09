@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use cargo::util::interning::InternedString;
+use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::GitIndex;
 use rayon::iter::ParallelIterator;
 
@@ -10,9 +10,12 @@ pub fn read_index(
     index: &GitIndex,
     create_filter: impl Fn(&str) -> bool + Sync + 'static,
     version_filter: impl Fn(&index_data::Version) -> bool + Sync + 'static,
-) -> &'static HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
+) -> (
+    HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+    HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
+) {
     println!("Start reading index");
-    let crates = index
+    let crates: HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> = index
         .crates_parallel()
         .map(|c| c.unwrap())
         .filter(|crt| create_filter(crt.name()))
@@ -28,14 +31,28 @@ pub fn read_index(
             (name, ver_lookup)
         })
         .collect();
+    let cargo_deps = crates
+        .iter()
+        .map(|(n, vs)| {
+            (
+                n.clone(),
+                vs.iter()
+                    .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
+                    .collect(),
+            )
+        })
+        .collect();
     println!("Done reading index");
-    &*Box::leak(Box::new(crates))
+    (crates, cargo_deps)
 }
 
 #[cfg(test)]
 pub fn read_test_file(
     iter: impl IntoIterator<Item = index_data::Version>,
-) -> HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> {
+) -> (
+    HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
+    HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
+) {
     let mut deps: HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>> =
         HashMap::new();
 
@@ -44,5 +61,18 @@ pub fn read_test_file(
             .or_default()
             .insert((*v.vers).clone(), v);
     }
-    deps
+
+    let cargo_deps = deps
+        .iter()
+        .map(|(n, vs)| {
+            (
+                n.clone(),
+                vs.iter()
+                    .map(|(v, d)| (v.clone(), d.try_into().unwrap()))
+                    .collect(),
+            )
+        })
+        .collect();
+
+    (deps, cargo_deps)
 }
