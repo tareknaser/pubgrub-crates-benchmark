@@ -1,5 +1,9 @@
 [
     (
+        name: "alloc",
+        vers: "1.0.0",
+    ),
+    (
         name: "rustix",
         vers: "0.38.34",
         deps: [
@@ -18,10 +22,6 @@
                 "alloc",
             ],
         },
-    ),
-    (
-        name: "alloc",
-        vers: "1.0.0",
     ),
     (
         name: "test-m",

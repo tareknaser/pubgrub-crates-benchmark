@@ -54,6 +54,7 @@ impl serde::Serialize for FeatureNamespace<'_> {
 pub enum Names<'c> {
     Bucket(&'c str, SemverCompatibility, bool),
     BucketFeatures(&'c str, SemverCompatibility, FeatureNamespace<'c>),
+    BucketDefaultFeatures(&'c str, SemverCompatibility),
     Wide(
         &'c str,
         &'c semver::VersionReq,
@@ -66,6 +67,12 @@ pub enum Names<'c> {
         &'c str,
         SemverCompatibility,
         FeatureNamespace<'c>,
+    ),
+    WideDefaultFeatures(
+        &'c str,
+        &'c semver::VersionReq,
+        &'c str,
+        SemverCompatibility,
     ),
     Links(&'c str),
 }
@@ -115,8 +122,10 @@ impl<'c> Ord for Names<'c> {
             match &self {
                 Names::Bucket(c, _, _)
                 | Names::BucketFeatures(c, _, _)
+                | Names::BucketDefaultFeatures(c, _)
                 | Names::Wide(c, _, _, _)
                 | Names::WideFeatures(c, _, _, _, _)
+                | Names::WideDefaultFeatures(c, _, _, _)
                 | Names::Links(c) => *c,
             }
         }
@@ -124,8 +133,10 @@ impl<'c> Ord for Names<'c> {
             match &other {
                 Names::Bucket(c, _, _)
                 | Names::BucketFeatures(c, _, _)
+                | Names::BucketDefaultFeatures(c, _)
                 | Names::Wide(c, _, _, _)
                 | Names::WideFeatures(c, _, _, _, _)
+                | Names::WideDefaultFeatures(c, _, _, _)
                 | Names::Links(c) => *c,
             }
         })
@@ -145,20 +156,34 @@ impl<'c> Names<'c> {
     }
     pub fn crate_(&self) -> &'c str {
         match self {
-            Names::Bucket(c, _, _) => *c,
-            Names::BucketFeatures(c, _, _) => *c,
-            Names::Wide(c, _, _, _) => *c,
-            Names::WideFeatures(c, _, _, _, _) => *c,
+            Names::Bucket(c, _, _)
+            | Names::BucketFeatures(c, _, _)
+            | Names::BucketDefaultFeatures(c, _)
+            | Names::Wide(c, _, _, _)
+            | Names::WideFeatures(c, _, _, _, _)
+            | Names::WideDefaultFeatures(c, _, _, _) => *c,
             Names::Links(_) => panic!(),
         }
     }
-    pub fn with_features(&self, feat: FeatureNamespace<'c>) -> Rc<Self> {
+    pub fn with_default_features(&self) -> Rc<Self> {
+        use Names::*;
         Rc::new(match self {
-            Names::Bucket(a, b, _) => Names::BucketFeatures(*a, *b, feat),
-            Names::BucketFeatures(a, b, _) => Names::BucketFeatures(*a, *b, feat),
-            Names::Wide(a, b, c, d) => Names::WideFeatures(*a, b, c, *d, feat),
-            Names::WideFeatures(a, b, c, d, _) => Names::WideFeatures(*a, b, c, *d, feat),
-            Names::Links(_) => panic!(),
+            Bucket(a, b, _) | BucketFeatures(a, b, _) => BucketDefaultFeatures(*a, *b),
+            Wide(a, b, c, d) | WideFeatures(a, b, c, d, _) => WideDefaultFeatures(*a, b, c, *d),
+            Links(_) => panic!(),
+            s @ BucketDefaultFeatures(_, _) | s @ WideDefaultFeatures(_, _, _, _) => s.clone(),
+        })
+    }
+    pub fn with_features(&self, feat: FeatureNamespace<'c>) -> Rc<Self> {
+        use Names::*;
+        Rc::new(match self {
+            Bucket(a, b, _) | BucketFeatures(a, b, _) | BucketDefaultFeatures(a, b) => {
+                BucketFeatures(*a, *b, feat)
+            }
+            Wide(a, b, c, d) | WideFeatures(a, b, c, d, _) | WideDefaultFeatures(a, b, c, d) => {
+                WideFeatures(*a, b, c, *d, feat)
+            }
+            Links(_) => panic!(),
         })
     }
 }
@@ -192,6 +217,17 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str("/")?;
                 feat.fmt(f)
             }
+            Names::BucketDefaultFeatures(n, m) => {
+                f.write_str("Bucket:")?;
+                f.write_str(n)?;
+                f.write_str("@")?;
+                f.write_str(&match m {
+                    SemverCompatibility::Major(i) => format!("{}.x.y", i),
+                    SemverCompatibility::Minor(i) => format!("0.{}.x", i),
+                    SemverCompatibility::Patch(i) => format!("0.0.{}", i),
+                })?;
+                f.write_str("/default=true")
+            }
             Names::Wide(c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
                 f.write_str(c)?;
@@ -221,6 +257,21 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str(&range.to_string())?;
                 f.write_str("/")?;
                 feat.fmt(f)
+            }
+            Names::WideDefaultFeatures(c, range, parent, parent_com) => {
+                f.write_str("Range:")?;
+                f.write_str(c)?;
+                f.write_str("(From:")?;
+                f.write_str(parent)?;
+                f.write_str("@")?;
+                f.write_str(&match parent_com {
+                    SemverCompatibility::Major(i) => format!("{}.x.y", i),
+                    SemverCompatibility::Minor(i) => format!("0.{}.x", i),
+                    SemverCompatibility::Patch(i) => format!("0.0.{}", i),
+                })?;
+                f.write_str("):")?;
+                f.write_str(&range.to_string())?;
+                f.write_str("/default=true")
             }
             Names::Links(name) => {
                 f.write_str("Links:")?;

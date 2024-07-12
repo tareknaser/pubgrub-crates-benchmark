@@ -68,17 +68,17 @@
     },
     "Bucket:syn@2.x.y/proc-macro": {
         "2.0.48": Ok({
-            "Bucket:syn@2.x.y": (
-                normal: [
-                    (Included("2.0.48"), Included("2.0.48")),
-                ],
-            ),
             "Range:proc-macro2(From:syn@2.x.y):*/proc-macro": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
                 pre: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+            "Bucket:syn@2.x.y": (
+                normal: [
+                    (Included("2.0.48"), Included("2.0.48")),
                 ],
             ),
         }),

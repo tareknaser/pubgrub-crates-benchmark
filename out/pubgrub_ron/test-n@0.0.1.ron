@@ -13,7 +13,7 @@
     },
     "Bucket:test-n@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:winnow@0.0.1/default": (
+            "Bucket:winnow@0.0.1/default=true": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
@@ -38,6 +38,20 @@
             "Bucket:memchr@0.0.1/std": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:winnow@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:winnow@0.0.1/default=true": {
+        "0.0.1": Ok({
+            "Bucket:winnow@0.0.1/default": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
             "Bucket:winnow@0.0.1": (

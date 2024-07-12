@@ -42,7 +42,7 @@
             ),
         }),
     },
-    "Range:fuel-tx(From:test-u@0.0.1):*": {
+    "Range:fuel-tx(From:test-w@0.0.1):*": {
         "0.0.1": Ok({
             "Bucket:fuel-tx@0.0.1": (
                 normal: [
@@ -51,9 +51,9 @@
             ),
         }),
     },
-    "Range:fuel-tx(From:test-u@0.0.1):*/default=true": {
+    "Range:fuel-tx(From:test-w@0.0.1):*/default=true": {
         "0.0.1": Ok({
-            "Range:fuel-tx(From:test-u@0.0.1):*": (
+            "Range:fuel-tx(From:test-w@0.0.1):*": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -70,12 +70,20 @@
     },
     "Bucket:serde@0.0.1/default": {
         "0.0.1": Ok({
+            "Bucket:serde@0.0.1/dep:default": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
             "Bucket:serde@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
+    },
+    "Bucket:serde@0.0.1/dep:default": {
+        "0.0.1": Err("no matching feat"),
     },
     "Range:serde(From:fuel-tx@0.0.1):*": {
         "0.0.1": Ok({
@@ -100,9 +108,9 @@
             ),
         }),
     },
-    "Bucket:test-u@0.0.1/All-FEATURES": {
+    "Bucket:test-w@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Range:fuel-tx(From:test-u@0.0.1):*": (
+            "Range:fuel-tx(From:test-w@0.0.1):*/default=true": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
@@ -110,7 +118,7 @@
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Range:fuel-tx(From:test-u@0.0.1):*/default=true": (
+            "Range:fuel-tx(From:test-w@0.0.1):*": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],

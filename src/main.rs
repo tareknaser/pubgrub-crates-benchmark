@@ -211,7 +211,7 @@ impl<'c> Index<'c> {
 
         let mut vertions: HashMap<
             (&str, SemverCompatibility),
-            (semver::Version, BTreeSet<_>, BTreeSet<_>),
+            (semver::Version, BTreeSet<_>, BTreeSet<_>, bool),
         > = HashMap::new();
         // Identify the selected packages
         for (names, ver) in pubmap {
@@ -224,7 +224,7 @@ impl<'c> Index<'c> {
                 }
                 let old_val = vertions.insert(
                     (*name, *cap),
-                    (ver.clone(), BTreeSet::new(), BTreeSet::new()),
+                    (ver.clone(), BTreeSet::new(), BTreeSet::new(), false),
                 );
 
                 if old_val.is_some() {
@@ -251,9 +251,24 @@ impl<'c> Index<'c> {
                 }
             }
         }
+        for (name, ver) in pubmap {
+            if let Names::BucketDefaultFeatures(name, cap) = &**name {
+                if cap != &SemverCompatibility::from(ver) {
+                    return false;
+                }
+                let old_val = vertions.get_mut(&(name, *cap)).unwrap();
+                if &old_val.0 != ver {
+                    return false;
+                }
+                if old_val.3 {
+                    return false;
+                }
+                old_val.3 = true;
+            }
+        }
 
         let mut links: BTreeSet<_> = BTreeSet::new();
-        for ((name, _), (ver, _feats, deps)) in vertions.iter() {
+        for ((name, _), (ver, feats, deps, default_feature)) in vertions.iter() {
             let index_ver = self.get_version(*name, ver).unwrap();
             if index_ver.yanked {
                 return false;
@@ -261,6 +276,12 @@ impl<'c> Index<'c> {
             if let Some(link) = &index_ver.links {
                 let old_link = links.insert(link.clone());
                 if !old_link {
+                    return false;
+                }
+            }
+
+            if *default_feature {
+                if index_ver.features.contains_key("default") != feats.contains("default") {
                     return false;
                 }
             }
@@ -278,14 +299,17 @@ impl<'c> Index<'c> {
 
                 // Check for something that meets that dep
                 let fulfilled = vertions.iter().find(
-                    |((other_name, _), (other_ver, other_feats, _other_deps))| {
+                    |(
+                        (other_name, _),
+                        (other_ver, other_feats, _other_deps, other_default_feature),
+                    )| {
                         **other_name == *dep.package_name
                             && dep.req.matches(other_ver)
                             && dep
                                 .features
                                 .iter()
                                 .all(|f| f.is_empty() || other_feats.contains(&**f))
-                            && (!dep.default_features || other_feats.contains("default"))
+                            && (!dep.default_features || *other_default_feature)
                     },
                 );
                 if fulfilled.is_none() {
@@ -342,7 +366,9 @@ impl<'c> DependencyProvider for Index<'c> {
                 Some(v.clone())
             }
 
-            Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
+            Names::Wide(_, req, _, _)
+            | Names::WideFeatures(_, req, _, _, _)
+            | Names::WideDefaultFeatures(_, req, _, _) => {
                 // one version for each bucket that match req
                 self.get_versions(&*package.crate_())
                     .filter(|v| req.matches(v))
@@ -350,7 +376,9 @@ impl<'c> DependencyProvider for Index<'c> {
                     .map(|v| v.canonical())
                     .find(|v| range.contains(v))
             }
-            _ => self
+            Names::Bucket(_, _, _)
+            | Names::BucketFeatures(_, _, _)
+            | Names::BucketDefaultFeatures(_, _) => self
                 .get_versions(&*package.crate_())
                 .find(|v| range.contains(v))
                 .cloned(),
@@ -432,11 +460,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
                     if dep.default_features {
-                        deps_insert(
-                            &mut deps,
-                            cray.with_features(FeatureNamespace::Feat("default")),
-                            req_range.clone(),
-                        );
+                        deps_insert(&mut deps, cray.with_default_features(), req_range.clone());
                     }
                     for f in &*dep.features {
                         deps_insert(
@@ -528,10 +552,6 @@ impl<'c> DependencyProvider for Index<'c> {
                     }
                     return Ok(Dependencies::Available(deps));
                 }
-                if *feat == "default" {
-                    // if "default" was specified it would be in features
-                    return Ok(Dependencies::Available(deps));
-                }
                 if index_ver.explicitly_named_deps.contains(*feat) {
                     return Ok(Dependencies::Unavailable(
                         "no matching feat (dep not a feat becuse of dep:)".into(),
@@ -542,6 +562,32 @@ impl<'c> DependencyProvider for Index<'c> {
                     package.with_features(FeatureNamespace::Dep(feat)),
                     SemverPubgrub::singleton(version.clone()),
                 );
+
+                Dependencies::Available(deps)
+            }
+            Names::BucketDefaultFeatures(name, _major) => {
+                let index_ver = self.get_version(*name, version).unwrap();
+                self.dependencies
+                    .borrow_mut()
+                    .insert((index_ver.name, version.clone()));
+                if index_ver.yanked {
+                    return Ok(Dependencies::Unavailable(
+                        "yanked: BucketFeatures DefaultFeatures".into(),
+                    ));
+                }
+                let mut deps = DependencyConstraints::default();
+                deps.insert(
+                    new_bucket(name, version.into(), false),
+                    SemverPubgrub::singleton(version.clone()),
+                );
+
+                if index_ver.features.contains_key("default") {
+                    deps_insert(
+                        &mut deps,
+                        package.with_features(FeatureNamespace::Feat("default")),
+                        SemverPubgrub::singleton(version.clone()),
+                    );
+                }
 
                 Dependencies::Available(deps)
             }
@@ -572,11 +618,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
                     if dep.default_features {
-                        deps_insert(
-                            &mut deps,
-                            cray.with_features(FeatureNamespace::Feat("default")),
-                            req_range.clone(),
-                        );
+                        deps_insert(&mut deps, cray.with_default_features(), req_range.clone());
                     }
                     for f in &*dep.features {
                         deps_insert(
@@ -615,6 +657,22 @@ impl<'c> DependencyProvider for Index<'c> {
                     ),
                     (
                         new_bucket(name, compatibility, false).with_features(*feat),
+                        range,
+                    ),
+                ]))
+            }
+            Names::WideDefaultFeatures(name, req, parent, parent_com) => {
+                let compatibility = SemverCompatibility::from(version);
+                let compat_range = SemverPubgrub::from(&compatibility);
+                let req_range = SemverPubgrub::from(*req);
+                let range = req_range.intersection(&compat_range);
+                Dependencies::Available(DependencyConstraints::from_iter([
+                    (
+                        new_wide(name, req, parent, parent_com.clone()),
+                        SemverPubgrub::singleton(version.clone()),
+                    ),
+                    (
+                        new_bucket(name, compatibility, false).with_default_features(),
                         range,
                     ),
                 ]))
