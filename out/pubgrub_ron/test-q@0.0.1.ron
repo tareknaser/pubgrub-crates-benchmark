@@ -1,9 +1,21 @@
 {
+    "Bucket:proc-macro2@0.0.1": {
+        "0.0.1": Ok({}),
+    },
     "Bucket:proc-macro2@0.0.1/proc-macro": {
         "0.0.1": Ok({
             "Bucket:proc-macro2@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:syn@0.0.1": {
+        "0.0.1": Ok({
+            "Bucket:proc-macro2@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
         }),
@@ -16,18 +28,6 @@
                 ],
             ),
             "Bucket:proc-macro2@0.0.1/proc-macro": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
-        }),
-    },
-    "Bucket:proc-macro2@0.0.1": {
-        "0.0.1": Ok({}),
-    },
-    "Bucket:syn@0.0.1": {
-        "0.0.1": Ok({
-            "Bucket:proc-macro2@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],

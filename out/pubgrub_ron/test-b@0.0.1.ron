@@ -1,13 +1,4 @@
 {
-    "Range:wasmi(From:test-b@0.0.1):*": {
-        "0.0.1": Ok({
-            "Bucket:wasmi@0.0.1": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:test-b@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
             "Range:wasmi(From:test-b@0.0.1):*": (
@@ -28,6 +19,15 @@
                 ],
                 pre: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+        }),
+    },
+    "Range:wasmi(From:test-b@0.0.1):*": {
+        "0.0.1": Ok({
+            "Bucket:wasmi@0.0.1": (
+                normal: [
+                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
                 ],
             ),
         }),

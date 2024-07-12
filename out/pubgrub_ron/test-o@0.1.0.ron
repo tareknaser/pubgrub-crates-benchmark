@@ -1,7 +1,4 @@
 {
-    "Bucket:ureq@2.x.y/c": {
-        "2.9.7": Err("no matching feat (dep not a feat becuse of dep:)"),
-    },
     "Bucket:test-o@0.1.x/All-FEATURES": {
         "0.1.0": Ok({
             "Bucket:ureq@2.x.y": (
@@ -15,5 +12,8 @@
                 ],
             ),
         }),
+    },
+    "Bucket:ureq@2.x.y/c": {
+        "2.9.7": Err("no matching feat (dep not a feat becuse of dep:)"),
     },
 }

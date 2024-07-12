@@ -111,46 +111,25 @@ pub fn from_dep<'c>(
 
 impl<'c> Ord for Names<'c> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        use std::cmp::Ordering;
-        match (self, other) {
-            (Names::Bucket(l1, l2, l3), Names::Bucket(r1, r2, r3)) => {
-                (l1, l2, l3).cmp(&(r1, r2, r3))
+        {
+            match &self {
+                Names::Bucket(c, _, _)
+                | Names::BucketFeatures(c, _, _)
+                | Names::Wide(c, _, _, _)
+                | Names::WideFeatures(c, _, _, _, _)
+                | Names::Links(c) => *c,
             }
-            (Names::Bucket(_, _, _), _) => Ordering::Greater,
-            (Names::BucketFeatures(_, _, _), Names::Bucket(_, _, _)) => Ordering::Less,
-            (Names::BucketFeatures(l1, l2, l3), Names::BucketFeatures(r1, r2, r3)) => {
-                (l1, l2, l3).cmp(&(r1, r2, r3))
-            }
-            (Names::BucketFeatures(_, _, _), _) => Ordering::Greater,
-            (Names::Wide(_, _, _, _), Names::Bucket(_, _, _)) => Ordering::Less,
-            (Names::Wide(_, _, _, _), Names::BucketFeatures(_, _, _)) => Ordering::Less,
-            (Names::Wide(l1, lreq, l2, l3), Names::Wide(r1, rreq, r2, r3)) => {
-                (l1, l2, l3).cmp(&(r1, r2, r3)).then_with(|| {
-                    if lreq == rreq {
-                        Ordering::Equal
-                    } else {
-                        lreq.to_string().cmp(&rreq.to_string())
-                    }
-                })
-            }
-            (Names::Wide(_, _, _, _), _) => Ordering::Greater,
-            (Names::WideFeatures(_, _, _, _, _), Names::Bucket(_, _, _)) => Ordering::Less,
-            (Names::WideFeatures(_, _, _, _, _), Names::BucketFeatures(_, _, _)) => Ordering::Less,
-            (Names::WideFeatures(_, _, _, _, _), Names::Wide(_, _, _, _)) => Ordering::Less,
-            (
-                Names::WideFeatures(l1, lreq, l2, l3, l4),
-                Names::WideFeatures(r1, rreq, r2, r3, r4),
-            ) => (l1, l2, l3, l4).cmp(&(r1, r2, r3, r4)).then_with(|| {
-                if lreq == rreq {
-                    Ordering::Equal
-                } else {
-                    lreq.to_string().cmp(&rreq.to_string())
-                }
-            }),
-            (Names::WideFeatures(_, _, _, _, _), _) => Ordering::Greater,
-            (Names::Links(l), Names::Links(r)) => l.cmp(r),
-            (Names::Links(_), _) => Ordering::Less,
         }
+        .cmp({
+            match &other {
+                Names::Bucket(c, _, _)
+                | Names::BucketFeatures(c, _, _)
+                | Names::Wide(c, _, _, _)
+                | Names::WideFeatures(c, _, _, _, _)
+                | Names::Links(c) => *c,
+            }
+        })
+        .then_with(|| self.to_string().cmp(&other.to_string()))
     }
 }
 

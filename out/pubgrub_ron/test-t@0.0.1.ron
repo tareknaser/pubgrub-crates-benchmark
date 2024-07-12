@@ -1,4 +1,7 @@
 {
+    "Bucket:burn-core@0.0.1": {
+        "0.0.1": Ok({}),
+    },
     "Bucket:burn-core@0.0.1/default": {
         "0.0.1": Ok({
             "Bucket:burn-core@0.0.1": (
@@ -7,9 +10,6 @@
                 ],
             ),
         }),
-    },
-    "Bucket:burn-core@0.0.1": {
-        "0.0.1": Ok({}),
     },
     "Bucket:test-t@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

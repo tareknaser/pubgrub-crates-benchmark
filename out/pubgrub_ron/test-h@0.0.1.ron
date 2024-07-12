@@ -1,23 +1,17 @@
 {
-    "Range:b(From:test-h@0.0.1):*/c": {
-        "0.3.0": Ok({
-            "Range:b(From:test-h@0.0.1):*": (
-                normal: [
-                    (Included("0.3.0"), Included("0.3.0")),
-                ],
-            ),
-            "Bucket:b@0.3.x/c": (
-                normal: [
-                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
-                ],
-            ),
-        }),
+    "Bucket:b@0.3.x": {
+        "0.3.7": Ok({}),
     },
-    "Range:b(From:test-h@0.0.1):*": {
-        "0.3.0": Ok({
+    "Bucket:b@0.3.x/c": {
+        "0.3.7": Ok({
             "Bucket:b@0.3.x": (
                 normal: [
-                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
+                    (Included("0.3.7"), Included("0.3.7")),
+                ],
+            ),
+            "Bucket:b@0.3.x/dep:c": (
+                normal: [
+                    (Included("0.3.7"), Included("0.3.7")),
                 ],
             ),
         }),
@@ -39,22 +33,28 @@
             ),
         }),
     },
-    "Bucket:b@0.3.x/c": {
-        "0.3.7": Ok({
+    "Range:b(From:test-h@0.0.1):*": {
+        "0.3.0": Ok({
             "Bucket:b@0.3.x": (
                 normal: [
-                    (Included("0.3.7"), Included("0.3.7")),
-                ],
-            ),
-            "Bucket:b@0.3.x/dep:c": (
-                normal: [
-                    (Included("0.3.7"), Included("0.3.7")),
+                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
                 ],
             ),
         }),
     },
-    "Bucket:b@0.3.x": {
-        "0.3.7": Ok({}),
+    "Range:b(From:test-h@0.0.1):*/c": {
+        "0.3.0": Ok({
+            "Range:b(From:test-h@0.0.1):*": (
+                normal: [
+                    (Included("0.3.0"), Included("0.3.0")),
+                ],
+            ),
+            "Bucket:b@0.3.x/c": (
+                normal: [
+                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
+                ],
+            ),
+        }),
     },
     "Bucket:test-h@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

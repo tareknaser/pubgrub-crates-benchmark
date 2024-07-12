@@ -1,4 +1,7 @@
 {
+    "Bucket:rustix@0.38.x": {
+        "0.38.34": Ok({}),
+    },
     "Bucket:rustix@0.38.x/alloc": {
         "0.38.34": Ok({
             "Bucket:rustix@0.38.x": (
@@ -21,9 +24,6 @@
                 ],
             ),
         }),
-    },
-    "Bucket:rustix@0.38.x": {
-        "0.38.34": Ok({}),
     },
     "Bucket:test-l@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

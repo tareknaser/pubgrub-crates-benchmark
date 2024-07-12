@@ -1,4 +1,7 @@
 {
+    "Bucket:quote@0.0.1": {
+        "0.0.1": Ok({}),
+    },
     "Bucket:quote@0.0.1/proc-macro": {
         "0.0.1": Ok({
             "Bucket:quote@0.0.1": (
@@ -8,19 +11,8 @@
             ),
         }),
     },
-    "Bucket:syn@0.0.1/dep:quote": {
-        "0.0.1": Ok({
-            "Bucket:quote@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
-            "Bucket:syn@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-        }),
+    "Bucket:syn@0.0.1": {
+        "0.0.1": Ok({}),
     },
     "Bucket:syn@0.0.1/default": {
         "0.0.1": Ok({
@@ -46,6 +38,20 @@
             ),
         }),
     },
+    "Bucket:syn@0.0.1/dep:quote": {
+        "0.0.1": Ok({
+            "Bucket:quote@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:syn@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
     "Bucket:syn@0.0.1/quote": {
         "0.0.1": Ok({
             "Bucket:syn@0.0.1/dep:quote": (
@@ -59,12 +65,6 @@
                 ],
             ),
         }),
-    },
-    "Bucket:quote@0.0.1": {
-        "0.0.1": Ok({}),
-    },
-    "Bucket:syn@0.0.1": {
-        "0.0.1": Ok({}),
     },
     "Bucket:test-r@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

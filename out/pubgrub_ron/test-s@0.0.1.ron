@@ -1,31 +1,6 @@
 {
-    "Bucket:a@0.0.1/dep:b": {
-        "0.0.1": Ok({
-            "Bucket:b@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
-            "Bucket:a@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-        }),
-    },
-    "Bucket:a@0.0.1/dep:x": {
-        "0.0.1": Ok({
-            "Bucket:x@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
-            "Bucket:a@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-        }),
+    "Bucket:a@0.0.1": {
+        "0.0.1": Ok({}),
     },
     "Bucket:a@0.0.1/b": {
         "0.0.1": Ok({
@@ -70,6 +45,34 @@
             ),
         }),
     },
+    "Bucket:a@0.0.1/dep:b": {
+        "0.0.1": Ok({
+            "Bucket:b@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
+    "Bucket:a@0.0.1/dep:x": {
+        "0.0.1": Ok({
+            "Bucket:x@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+        }),
+    },
     "Bucket:a@0.0.1/x": {
         "0.0.1": Ok({
             "Bucket:a@0.0.1/dep:x": (
@@ -84,6 +87,9 @@
             ),
         }),
     },
+    "Bucket:b@0.0.1": {
+        "0.0.1": Ok({}),
+    },
     "Bucket:b@0.0.1/native": {
         "0.0.1": Ok({
             "Bucket:b@0.0.1": (
@@ -92,12 +98,6 @@
                 ],
             ),
         }),
-    },
-    "Bucket:a@0.0.1": {
-        "0.0.1": Ok({}),
-    },
-    "Bucket:b@0.0.1": {
-        "0.0.1": Ok({}),
     },
     "Bucket:test-s@0.0.1/All-FEATURES": {
         "0.0.1": Ok({

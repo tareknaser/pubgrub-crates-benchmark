@@ -1,28 +1,12 @@
 {
-    "Range:proc-macro2(From:syn@2.x.y):*/proc-macro": {
-        "1.0.0": Ok({
-            "Range:proc-macro2(From:syn@2.x.y):*": (
-                normal: [
-                    (Included("1.0.0"), Included("1.0.0")),
-                ],
-            ),
-            "Bucket:proc-macro2@1.x.y/proc-macro": (
-                normal: [
-                    (Included("1.0.0-0"), Excluded("2.0.0-0")),
-                ],
-            ),
-        }),
+    "Bucket:proc-macro2@1.x.y": {
+        "1.0.78": Ok({}),
     },
-    "Range:syn(From:serde_derive@1.x.y):*/proc-macro": {
-        "2.0.0": Ok({
-            "Bucket:syn@2.x.y/proc-macro": (
+    "Bucket:proc-macro2@1.x.y/proc-macro": {
+        "1.0.78": Ok({
+            "Bucket:proc-macro2@1.x.y": (
                 normal: [
-                    (Included("2.0.0-0"), Excluded("3.0.0-0")),
-                ],
-            ),
-            "Range:syn(From:serde_derive@1.x.y):*": (
-                normal: [
-                    (Included("2.0.0"), Included("2.0.0")),
+                    (Included("1.0.78"), Included("1.0.78")),
                 ],
             ),
         }),
@@ -36,43 +20,19 @@
             ),
         }),
     },
-    "Range:syn(From:serde_derive@1.x.y):*": {
-        "2.0.0": Ok({
-            "Bucket:syn@2.x.y": (
+    "Range:proc-macro2(From:syn@2.x.y):*/proc-macro": {
+        "1.0.0": Ok({
+            "Range:proc-macro2(From:syn@2.x.y):*": (
                 normal: [
-                    (Included("2.0.0-0"), Excluded("3.0.0-0")),
+                    (Included("1.0.0"), Included("1.0.0")),
+                ],
+            ),
+            "Bucket:proc-macro2@1.x.y/proc-macro": (
+                normal: [
+                    (Included("1.0.0-0"), Excluded("2.0.0-0")),
                 ],
             ),
         }),
-    },
-    "Bucket:proc-macro2@1.x.y/proc-macro": {
-        "1.0.78": Ok({
-            "Bucket:proc-macro2@1.x.y": (
-                normal: [
-                    (Included("1.0.78"), Included("1.0.78")),
-                ],
-            ),
-        }),
-    },
-    "Bucket:syn@2.x.y/proc-macro": {
-        "2.0.48": Ok({
-            "Bucket:syn@2.x.y": (
-                normal: [
-                    (Included("2.0.48"), Included("2.0.48")),
-                ],
-            ),
-            "Range:proc-macro2(From:syn@2.x.y):*/proc-macro": (
-                normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
-        }),
-    },
-    "Bucket:proc-macro2@1.x.y": {
-        "1.0.78": Ok({}),
     },
     "Bucket:serde_derive@1.x.y": {
         "1.0.196": Ok({
@@ -102,6 +62,46 @@
                 ],
                 pre: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+        }),
+    },
+    "Bucket:syn@2.x.y/proc-macro": {
+        "2.0.48": Ok({
+            "Bucket:syn@2.x.y": (
+                normal: [
+                    (Included("2.0.48"), Included("2.0.48")),
+                ],
+            ),
+            "Range:proc-macro2(From:syn@2.x.y):*/proc-macro": (
+                normal: [
+                    (Unbounded, Unbounded),
+                ],
+                pre: [
+                    (Unbounded, Unbounded),
+                ],
+            ),
+        }),
+    },
+    "Range:syn(From:serde_derive@1.x.y):*": {
+        "2.0.0": Ok({
+            "Bucket:syn@2.x.y": (
+                normal: [
+                    (Included("2.0.0-0"), Excluded("3.0.0-0")),
+                ],
+            ),
+        }),
+    },
+    "Range:syn(From:serde_derive@1.x.y):*/proc-macro": {
+        "2.0.0": Ok({
+            "Bucket:syn@2.x.y/proc-macro": (
+                normal: [
+                    (Included("2.0.0-0"), Excluded("3.0.0-0")),
+                ],
+            ),
+            "Range:syn(From:serde_derive@1.x.y):*": (
+                normal: [
+                    (Included("2.0.0"), Included("2.0.0")),
                 ],
             ),
         }),

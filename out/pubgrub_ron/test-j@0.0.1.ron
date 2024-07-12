@@ -1,22 +1,4 @@
 {
-    "Range:js-sys(From:test-j@0.0.1):*": {
-        "0.2.0": Ok({
-            "Bucket:js-sys@0.2.x": (
-                normal: [
-                    (Included("0.2.0-0"), Excluded("0.3.0-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:test-j(From:js-sys@0.2.x):*": {
-        "0.0.1": Ok({
-            "Bucket:test-j@0.0.1": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:js-sys@0.2.x": {
         "0.2.5": Ok({
             "Range:test-j(From:js-sys@0.2.x):*": (
@@ -25,6 +7,15 @@
                 ],
                 pre: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+        }),
+    },
+    "Range:js-sys(From:test-j@0.0.1):*": {
+        "0.2.0": Ok({
+            "Bucket:js-sys@0.2.x": (
+                normal: [
+                    (Included("0.2.0-0"), Excluded("0.3.0-0")),
                 ],
             ),
         }),
@@ -59,6 +50,15 @@
                 ],
                 pre: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+        }),
+    },
+    "Range:test-j(From:js-sys@0.2.x):*": {
+        "0.0.1": Ok({
+            "Bucket:test-j@0.0.1": (
+                normal: [
+                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
                 ],
             ),
         }),
