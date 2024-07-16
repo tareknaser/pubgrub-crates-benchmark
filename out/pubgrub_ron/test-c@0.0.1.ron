@@ -32,19 +32,13 @@
     },
     "Bucket:iced@0.4.x/dep:iced_wgpu": {
         "0.4.2": Ok({
-            "Range:iced_wgpu(From:iced@0.4.x):*/webgl": (
+            "Bucket:iced_wgpu@0.5.x/webgl": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Range:iced_wgpu(From:iced@0.4.x):*": (
+            "Bucket:iced_wgpu@0.5.x": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
@@ -69,29 +63,6 @@
             ),
         }),
     },
-    "Range:iced(From:test-c@0.0.1):*": {
-        "0.4.0": Ok({
-            "Bucket:iced@0.4.x": (
-                normal: [
-                    (Included("0.4.0-0"), Excluded("0.5.0-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:iced(From:test-c@0.0.1):*/default=true": {
-        "0.4.0": Ok({
-            "Bucket:iced@0.4.x/default=true": (
-                normal: [
-                    (Included("0.4.0-0"), Excluded("0.5.0-0")),
-                ],
-            ),
-            "Range:iced(From:test-c@0.0.1):*": (
-                normal: [
-                    (Included("0.4.0"), Included("0.4.0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:iced_wgpu@0.5.x": {
         "0.5.1": Ok({}),
     },
@@ -104,44 +75,15 @@
             ),
         }),
     },
-    "Range:iced_wgpu(From:iced@0.4.x):*": {
-        "0.5.0": Ok({
-            "Bucket:iced_wgpu@0.5.x": (
-                normal: [
-                    (Included("0.5.0-0"), Excluded("0.6.0-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:iced_wgpu(From:iced@0.4.x):*/webgl": {
-        "0.5.0": Ok({
-            "Bucket:iced_wgpu@0.5.x/webgl": (
-                normal: [
-                    (Included("0.5.0-0"), Excluded("0.6.0-0")),
-                ],
-            ),
-            "Range:iced_wgpu(From:iced@0.4.x):*": (
-                normal: [
-                    (Included("0.5.0"), Included("0.5.0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:test-c@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Range:iced(From:test-c@0.0.1):*/default=true": (
+            "Bucket:iced@0.4.x/default=true": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Range:iced(From:test-c@0.0.1):*": (
+            "Bucket:iced@0.4.x": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),

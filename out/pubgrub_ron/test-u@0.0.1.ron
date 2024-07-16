@@ -1,11 +1,8 @@
 {
     "Bucket:fuel-tx@0.0.1": {
         "0.0.1": Ok({
-            "Range:serde(From:fuel-tx@0.0.1):*": (
+            "Bucket:serde@0.0.1": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
@@ -18,11 +15,8 @@
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Range:serde(From:fuel-tx@0.0.1):*/default": (
+            "Bucket:serde@0.0.1/default": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
@@ -42,29 +36,6 @@
             ),
         }),
     },
-    "Range:fuel-tx(From:test-u@0.0.1):*": {
-        "0.0.1": Ok({
-            "Bucket:fuel-tx@0.0.1": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:fuel-tx(From:test-u@0.0.1):*/default=true": {
-        "0.0.1": Ok({
-            "Range:fuel-tx(From:test-u@0.0.1):*": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-            "Bucket:fuel-tx@0.0.1/default=true": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:serde@0.0.1": {
         "0.0.1": Ok({}),
     },
@@ -77,44 +48,15 @@
             ),
         }),
     },
-    "Range:serde(From:fuel-tx@0.0.1):*": {
-        "0.0.1": Ok({
-            "Bucket:serde@0.0.1": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:serde(From:fuel-tx@0.0.1):*/default": {
-        "0.0.1": Ok({
-            "Range:serde(From:fuel-tx@0.0.1):*": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
-            "Bucket:serde@0.0.1/default": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:test-u@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Range:fuel-tx(From:test-u@0.0.1):*": (
+            "Bucket:fuel-tx@0.0.1": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Range:fuel-tx(From:test-u@0.0.1):*/default=true": (
+            "Bucket:fuel-tx@0.0.1/default=true": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),

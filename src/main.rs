@@ -18,7 +18,7 @@ use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
 use itertools::Itertools as _;
-use names::{from_dep, new_bucket, new_links, new_wide, FeatureNamespace, Names};
+use names::{new_bucket, new_links, new_wide, FeatureNamespace, Names};
 use pubgrub::{
     error::PubGrubError,
     solver::resolve,
@@ -187,6 +187,47 @@ impl<'c> Index<'c> {
             past.get(name)?.get(ver)?;
         }
         self.crates.get(name)?.get(ver)
+    }
+
+    fn only_one_compatibility_range_in_data(
+        &self,
+        dep: &'c index_data::Dependency,
+    ) -> Option<SemverCompatibility> {
+        let mut iter = self
+            .get_versions(dep.package_name.as_str())
+            .filter(|v| dep.req.matches(v))
+            .map(|v| SemverCompatibility::from(v));
+        let first = iter.next().unwrap_or(SemverCompatibility::Patch(0));
+        let mut iter = iter.filter(|v| v != &first);
+        if iter.next().is_some() {
+            None
+        } else {
+            Some(first)
+        }
+    }
+
+    fn from_dep(
+        &self,
+        dep: &'c index_data::Dependency,
+        from: &'c str,
+        compat: impl Into<SemverCompatibility>,
+    ) -> (Rc<Names<'c>>, SemverPubgrub) {
+        let req_range = SemverPubgrub::from(&*dep.req);
+
+        if let Some(compat) = req_range
+            .only_one_compatibility_range()
+            .or_else(|| self.only_one_compatibility_range_in_data(dep))
+        {
+            (
+                new_bucket(dep.package_name.as_str(), compat, false),
+                req_range,
+            )
+        } else {
+            (
+                new_wide(dep.package_name.as_str(), &dep.req, from, compat.into()),
+                SemverPubgrub::full(),
+            )
+        }
     }
 
     #[must_use]
@@ -452,7 +493,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         continue; // handled in Names::Features
                     }
 
-                    let (cray, req_range) = from_dep(&dep, name, version);
+                    let (cray, req_range) = self.from_dep(&dep, name, version);
 
                     if &cray == package {
                         return Ok(Dependencies::Unavailable("self dep: Bucket".into()));
@@ -476,7 +517,7 @@ impl<'c> DependencyProvider for Index<'c> {
                             if let Some((dep, dep_feat)) = val.split_once('/') {
                                 let dep_name = dep.strip_suffix('?').unwrap_or(dep);
                                 for com in index_ver.deps.get(dep_name) {
-                                    let (cray, req_range) = from_dep(com, name, version);
+                                    let (cray, req_range) = self.from_dep(com, name, version);
                                     deps_insert(
                                         &mut deps,
                                         cray.with_features(FeatureNamespace::new(dep_feat)),
@@ -516,7 +557,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                 if dep.kind == DependencyKind::Dev {
                                     continue;
                                 }
-                                let (cray, req_range) = from_dep(dep, name, version);
+                                let (cray, req_range) = self.from_dep(dep, name, version);
 
                                 if dep.optional {
                                     deps_insert(
@@ -613,7 +654,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         continue;
                     }
                     found_name = true;
-                    let (cray, req_range) = from_dep(&dep, name, version);
+                    let (cray, req_range) = self.from_dep(&dep, name, version);
 
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 

@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use pubgrub::version_set::VersionSet as _;
-use semver_pubgrub::{SemverCompatibility, SemverPubgrub};
-
-use crate::index_data::Dependency;
+use semver_pubgrub::SemverCompatibility;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum FeatureNamespace<'c> {
@@ -94,26 +91,6 @@ pub fn new_wide<'c>(
 }
 pub fn new_links<'c>(crate_: &'c str) -> Rc<Names<'c>> {
     Rc::new(Names::Links(crate_))
-}
-
-pub fn from_dep<'c>(
-    dep: &'c Dependency,
-    from: &'c str,
-    compat: impl Into<SemverCompatibility>,
-) -> (Rc<Names<'c>>, SemverPubgrub) {
-    let req_range = SemverPubgrub::from(&*dep.req);
-
-    if let Some(compat) = req_range.only_one_compatibility_range() {
-        (
-            new_bucket(dep.package_name.as_str(), compat, false),
-            req_range,
-        )
-    } else {
-        (
-            new_wide(dep.package_name.as_str(), &dep.req, from, compat.into()),
-            SemverPubgrub::full(),
-        )
-    }
 }
 
 impl<'c> Ord for Names<'c> {

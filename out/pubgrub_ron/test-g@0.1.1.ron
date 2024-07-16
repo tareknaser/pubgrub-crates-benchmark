@@ -2,15 +2,6 @@
     "Bucket:log@0.0.1": {
         "0.0.1": Ok({}),
     },
-    "Range:log(From:test-g@0.1.x):*": {
-        "0.0.1": Ok({
-            "Bucket:log@0.0.1": (
-                normal: [
-                    (Included("0.0.1-0"), Excluded("0.0.2-0")),
-                ],
-            ),
-        }),
-    },
     "Bucket:test-g@0.1.x": {
         "0.1.0": Ok({}),
     },
@@ -21,11 +12,8 @@
                     (Included("0.1.0"), Excluded("0.1.1")),
                 ],
             ),
-            "Range:log(From:test-g@0.1.x):*": (
+            "Bucket:log@0.0.1": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),

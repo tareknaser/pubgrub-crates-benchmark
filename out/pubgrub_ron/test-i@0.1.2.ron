@@ -1,32 +1,17 @@
 {
     "Bucket:a@0.1.x": {
         "0.1.1": Ok({
-            "Range:test-i(From:a@0.1.x):*": (
+            "Bucket:test-i@0.1.x": (
                 normal: [
                     (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
-        }),
-    },
-    "Range:a(From:test-i@0.1.x):*": {
-        "0.1.0": Ok({
-            "Bucket:a@0.1.x": (
-                normal: [
-                    (Included("0.1.0-0"), Excluded("0.2.0-0")),
                 ],
             ),
         }),
     },
     "Bucket:test-i@0.1.x": {
         "0.1.2": Ok({
-            "Range:a(From:test-i@0.1.x):*": (
+            "Bucket:a@0.1.x": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
@@ -34,21 +19,9 @@
     },
     "Bucket:test-i@0.1.x/All-FEATURES": {
         "0.1.2": Ok({
-            "Range:a(From:test-i@0.1.x):*": (
+            "Bucket:a@0.1.x": (
                 normal: [
                     (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
-        }),
-    },
-    "Range:test-i(From:a@0.1.x):*": {
-        "0.1.0": Ok({
-            "Bucket:test-i@0.1.x": (
-                normal: [
-                    (Included("0.1.0-0"), Excluded("0.2.0-0")),
                 ],
             ),
         }),

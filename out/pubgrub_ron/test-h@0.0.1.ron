@@ -23,54 +23,22 @@
                     (Included("0.3.7"), Included("0.3.7")),
                 ],
             ),
-            "Range:c(From:b@0.3.x):*": (
+            "Bucket:c@0.0.0": (
                 normal: [
                     (Unbounded, Unbounded),
-                ],
-                pre: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
-        }),
-    },
-    "Range:b(From:test-h@0.0.1):*": {
-        "0.3.0": Ok({
-            "Bucket:b@0.3.x": (
-                normal: [
-                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
-                ],
-            ),
-        }),
-    },
-    "Range:b(From:test-h@0.0.1):*/c": {
-        "0.3.0": Ok({
-            "Range:b(From:test-h@0.0.1):*": (
-                normal: [
-                    (Included("0.3.0"), Included("0.3.0")),
-                ],
-            ),
-            "Bucket:b@0.3.x/c": (
-                normal: [
-                    (Included("0.3.0-0"), Excluded("0.4.0-0")),
                 ],
             ),
         }),
     },
     "Bucket:test-h@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Range:b(From:test-h@0.0.1):*": (
+            "Bucket:b@0.3.x": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Range:b(From:test-h@0.0.1):*/c": (
+            "Bucket:b@0.3.x/c": (
                 normal: [
-                    (Unbounded, Unbounded),
-                ],
-                pre: [
                     (Unbounded, Unbounded),
                 ],
             ),
