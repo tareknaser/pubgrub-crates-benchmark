@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use cargo::util::interning::InternedString;
 use internment::Intern;
 use itertools::Itertools;
+use semver_pubgrub::SemverPubgrub;
 
 fn is_default<D: Default + PartialEq>(t: &D) -> bool {
     t == &D::default()
@@ -37,6 +38,7 @@ pub struct Dependency {
     pub name: InternedString,
     pub package_name: InternedString,
     pub req: Intern<semver::VersionReq>,
+    pub pubgrub_req: Intern<SemverPubgrub>,
     pub features: Intern<Vec<InternedString>>,
     pub default_features: bool,
     pub kind: crates_index::DependencyKind,
@@ -45,6 +47,7 @@ pub struct Dependency {
 
 impl<'da> From<RawIndexDependency<'da>> for Dependency {
     fn from(value: RawIndexDependency<'da>) -> Self {
+        let pubgrub_req: SemverPubgrub = (&value.req).into();
         Self {
             name: value.name.into(),
             package_name: if !is_default(&value.package_name) {
@@ -52,6 +55,7 @@ impl<'da> From<RawIndexDependency<'da>> for Dependency {
             } else {
                 value.name.into()
             },
+            pubgrub_req: pubgrub_req.into(),
             req: value.req.into(),
             features: value
                 .features
@@ -99,10 +103,13 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
             .map(|s| s.as_str().into())
             .collect_vec();
         features.sort_unstable();
+        let req = dep.requirement().parse::<semver::VersionReq>()?;
+        let pubgrub_req: SemverPubgrub = (&req).into();
         Ok(Dependency {
             name: dep.name().into(),
             package_name: dep.crate_name().into(),
-            req: dep.requirement().parse::<semver::VersionReq>()?.into(),
+            pubgrub_req: pubgrub_req.into(),
+            req: req.into(),
             features: features.into(),
             kind: dep.kind(),
             optional: dep.is_optional(),

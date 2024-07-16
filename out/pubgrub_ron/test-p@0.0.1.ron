@@ -7,26 +7,26 @@
     },
     "Bucket:b@0.0.1/dep:a": {
         "0.0.1": Ok({
-            "Bucket:b@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
             "Bucket:a@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+            "Bucket:b@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
     },
     "Bucket:b@0.0.1/perf-literal": {
         "0.0.1": Ok({
-            "Bucket:b@0.0.1": (
+            "Bucket:b@0.0.1/dep:a": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:b@0.0.1/dep:a": (
+            "Bucket:b@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -38,26 +38,26 @@
     },
     "Bucket:c@0.0.1/dep:b": {
         "0.0.1": Ok({
-            "Bucket:b@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
             "Bucket:c@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:b@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
         }),
     },
     "Bucket:c@0.0.1/perf-literal": {
         "0.0.1": Ok({
-            "Bucket:c@0.0.1/dep:b": (
+            "Bucket:c@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:c@0.0.1": (
+            "Bucket:c@0.0.1/dep:b": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],

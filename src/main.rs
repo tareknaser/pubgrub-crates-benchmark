@@ -212,15 +212,14 @@ impl<'c> Index<'c> {
         from: &'c str,
         compat: impl Into<SemverCompatibility>,
     ) -> (Rc<Names<'c>>, SemverPubgrub) {
-        let req_range = SemverPubgrub::from(&*dep.req);
-
-        if let Some(compat) = req_range
+        if let Some(compat) = dep
+            .pubgrub_req
             .only_one_compatibility_range()
             .or_else(|| self.only_one_compatibility_range_in_data(dep))
         {
             (
                 new_bucket(dep.package_name.as_str(), compat, false),
-                req_range,
+                (*dep.pubgrub_req).clone(),
             )
         } else {
             (

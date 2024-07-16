@@ -10,26 +10,26 @@
     },
     "Bucket:fuel-tx@0.0.1/default": {
         "0.0.1": Ok({
-            "Bucket:fuel-tx@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Included("0.0.1")),
-                ],
-            ),
             "Bucket:serde@0.0.1/default": (
                 normal: [
                     (Unbounded, Unbounded),
+                ],
+            ),
+            "Bucket:fuel-tx@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
         }),
     },
     "Bucket:fuel-tx@0.0.1/default=true": {
         "0.0.1": Ok({
-            "Bucket:fuel-tx@0.0.1/default": (
+            "Bucket:fuel-tx@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:fuel-tx@0.0.1": (
+            "Bucket:fuel-tx@0.0.1/default": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -41,12 +41,12 @@
     },
     "Bucket:serde@0.0.1/default": {
         "0.0.1": Ok({
-            "Bucket:serde@0.0.1/dep:default": (
+            "Bucket:serde@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:serde@0.0.1": (
+            "Bucket:serde@0.0.1/dep:default": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],

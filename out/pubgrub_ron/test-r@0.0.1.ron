@@ -16,12 +16,12 @@
     },
     "Bucket:syn@0.0.1/default": {
         "0.0.1": Ok({
-            "Bucket:syn@0.0.1/dep:quote": (
+            "Bucket:syn@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:syn@0.0.1/quote": (
+            "Bucket:syn@0.0.1/dep:quote": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -31,7 +31,7 @@
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:syn@0.0.1": (
+            "Bucket:syn@0.0.1/quote": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -82,12 +82,12 @@
     },
     "Bucket:test-r@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:syn@0.0.1": (
+            "Bucket:syn@0.0.1/default=true": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:syn@0.0.1/default=true": (
+            "Bucket:syn@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],

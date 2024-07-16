@@ -13,12 +13,12 @@
     },
     "Bucket:burn-core@0.0.1/default=true": {
         "0.0.1": Ok({
-            "Bucket:burn-core@0.0.1": (
+            "Bucket:burn-core@0.0.1/default": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:burn-core@0.0.1/default": (
+            "Bucket:burn-core@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],

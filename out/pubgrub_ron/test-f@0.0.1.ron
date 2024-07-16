@@ -13,12 +13,12 @@
     },
     "Bucket:serde_derive@1.x.y": {
         "1.0.196": Ok({
-            "Bucket:syn@2.x.y/proc-macro": (
+            "Bucket:syn@2.x.y": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Bucket:syn@2.x.y": (
+            "Bucket:syn@2.x.y/proc-macro": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
