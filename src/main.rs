@@ -20,11 +20,8 @@ use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, Prog
 use itertools::Itertools as _;
 use names::{new_bucket, new_links, new_wide, FeatureNamespace, Names};
 use pubgrub::{
-    error::PubGrubError,
-    solver::resolve,
-    solver::{Dependencies, DependencyProvider},
-    type_aliases::{DependencyConstraints, SelectedDependencies},
-    version_set::VersionSet as _,
+    resolve, Dependencies, DependencyConstraints, DependencyProvider, PubGrubError,
+    SelectedDependencies, VersionSet as _,
 };
 use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
 use ron::ser::PrettyConfig;
