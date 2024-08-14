@@ -23,6 +23,11 @@ fn crates_data_from_file<P: AsRef<Path>>(
 fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> bool {
     dp.reset();
     let res = resolve(dp, root.clone(), ver.clone());
+    let pub_cyclic_package_dependency = if let Ok(map) = res.as_ref() {
+        dp.check_cycles(root.clone(), map)
+    } else {
+        false
+    };
     match res.as_ref() {
         Ok(map) => {
             if !dp.check(root.clone(), &map) {
@@ -40,11 +45,14 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
 
     let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
-    // TODO: check for cyclic package dependency!
     let cyclic_package_dependency = &cargo_out
         .as_ref()
         .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
         == &Err(true);
+
+    if cyclic_package_dependency != pub_cyclic_package_dependency {
+        return false;
+    }
 
     if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
         return false;
@@ -179,7 +187,7 @@ fn named_from_files_pass_without_vers() {
             }
             break;
         }
-        let(crates, cargo_data) = read_test_file(data);
+        let (crates, cargo_data) = read_test_file(data);
         let mut dp = Index::new(&crates, &cargo_data);
         let root = new_bucket(&name, (&ver).into(), true);
         if !check(&mut dp, root, &ver) {

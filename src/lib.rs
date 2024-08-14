@@ -222,6 +222,107 @@ impl<'c> Index<'c> {
     }
 
     #[must_use]
+    fn check_cycles(&self, root: Rc<Names<'c>>, pubmap: &SelectedDependencies<Self>) -> bool {
+        let mut vertions: HashMap<
+            (&str, SemverCompatibility, bool),
+            (semver::Version, BTreeSet<_>, BTreeSet<_>),
+        > = HashMap::new();
+        // Identify the selected packages
+        for (names, ver) in pubmap {
+            if let Names::Bucket(name, cap, is_root) = &**names {
+                if cap != &SemverCompatibility::from(ver) {
+                    panic!("cap not meet");
+                }
+                let old_val = vertions.insert(
+                    (*name, *cap, *is_root),
+                    (ver.clone(), BTreeSet::new(), BTreeSet::new()),
+                );
+
+                if old_val.is_some() {
+                    panic!("duplicate package");
+                }
+            }
+        }
+        // Identify the selected package features and deps
+        for (name, ver) in pubmap {
+            if let Names::BucketFeatures(name, cap, feat) = &**name {
+                if cap != &SemverCompatibility::from(ver) {
+                    panic!("cap not meet for feature");
+                }
+                let old_val = vertions.get_mut(&(name, *cap, false)).unwrap();
+                if &old_val.0 != ver {
+                    panic!("ver not match for feature");
+                }
+                let old_feat = match *feat {
+                    FeatureNamespace::Feat(f) => old_val.1.insert(f),
+                    FeatureNamespace::Dep(f) => old_val.2.insert(f),
+                };
+                if !old_feat {
+                    panic!("duplicate feature");
+                }
+            }
+        }
+
+        let mut checked = HashSet::with_capacity(vertions.len());
+        let mut visited = HashSet::with_capacity(4);
+        let Names::Bucket(name, cap, is_root) = &*root else {
+            panic!("root not bucket");
+        };
+        self.visit(
+            (*name, *cap, *is_root),
+            pubmap,
+            &vertions,
+            &mut visited,
+            &mut checked,
+        )
+        .is_err()
+    }
+
+    fn visit(
+        &self,
+        id: (&'c str, SemverCompatibility, bool),
+        pubmap: &SelectedDependencies<Self>,
+        vertions: &HashMap<
+            (&str, SemverCompatibility, bool),
+            (semver::Version, BTreeSet<&str>, BTreeSet<&str>),
+        >,
+        visited: &mut HashSet<(&'c str, SemverCompatibility, bool)>,
+        checked: &mut HashSet<(&'c str, SemverCompatibility, bool)>,
+    ) -> Result<(), ()> {
+        if !visited.insert(id) {
+            // We found a cycle and need to construct an error. Performance is no longer top priority.
+            return Err(());
+        }
+
+        if checked.insert(id) {
+            let (version, _feats, deps) = &vertions[&id];
+
+            let index_ver = self.get_version(id.0, version).unwrap();
+            for dep in index_ver.deps.iter() {
+                if dep.kind == DependencyKind::Dev {
+                    continue;
+                }
+                if dep.optional && !id.2 && !deps.contains(dep.name.as_str()) {
+                    continue;
+                }
+                let (cray, _) = self.from_dep(&dep, id.0, version);
+
+                let dep_ver = &pubmap[&cray];
+                self.visit(
+                    (dep.package_name.as_str(), dep_ver.into(), false),
+                    pubmap,
+                    vertions,
+                    visited,
+                    checked,
+                )?;
+            }
+        }
+
+        visited.remove(&id);
+        Ok(())
+    }
+
+    #[must_use]
     fn check(&self, root: Rc<Names>, pubmap: &SelectedDependencies<Self>) -> bool {
         // Basic dependency resolution properties
         if !pubmap.contains_key(&root) {
@@ -486,9 +587,6 @@ impl<'c> DependencyProvider for Index<'c> {
 
                     let (cray, req_range) = self.from_dep(&dep, name, version);
 
-                    if &cray == package {
-                        return Ok(Dependencies::Unavailable("self dep: Bucket".into()));
-                    }
                     deps_insert(&mut deps, cray.clone(), req_range.clone());
 
                     if dep.default_features {
@@ -731,6 +829,11 @@ pub fn process_carte_version<'c>(
     let root = new_bucket(crt.as_str(), (&ver).into(), true);
     dp.reset();
     let res = resolve(dp, root.clone(), (&ver).clone());
+    let pub_cyclic_package_dependency = if let Ok(map) = res.as_ref() {
+        dp.check_cycles(root.clone(), map)
+    } else {
+        false
+    };
     let duration = dp.duration();
     match res.as_ref() {
         Ok(map) => {
@@ -756,11 +859,15 @@ pub fn process_carte_version<'c>(
     let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
     let cargo_duration = dp.duration();
 
-    // TODO: check for cyclic package dependency!
     let cyclic_package_dependency = &cargo_out
         .as_ref()
         .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
         == &Err(true);
+
+    if cyclic_package_dependency != pub_cyclic_package_dependency {
+        dp.make_index_ron_file();
+        println!("failed to cyclic_package_dependency {root:?}");
+    }
 
     if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
         dp.make_index_ron_file();
