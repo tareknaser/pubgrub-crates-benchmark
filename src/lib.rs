@@ -18,8 +18,9 @@ use itertools::Itertools as _;
 use names::{new_bucket, new_links, new_wide, FeatureNamespace, Names};
 use pubgrub::{
     resolve, Dependencies, DependencyConstraints, DependencyProvider, PubGrubError,
-    SelectedDependencies, VersionSet as _,
+    SelectedDependencies, VersionSet,
 };
+use rc_semver_pubgrub::RcSemverPubgrub;
 use ron::ser::PrettyConfig;
 use semver_pubgrub::{SemverCompatibility, SemverPubgrub};
 
@@ -27,6 +28,7 @@ pub mod cargo_resolver;
 pub mod hasher;
 pub mod index_data;
 pub mod names;
+mod rc_semver_pubgrub;
 pub mod read_index;
 #[cfg(test)]
 mod tests;
@@ -203,7 +205,7 @@ impl<'c> Index<'c> {
         dep: &'c index_data::Dependency,
         from: &'c str,
         compat: impl Into<SemverCompatibility>,
-    ) -> (Rc<Names<'c>>, SemverPubgrub) {
+    ) -> (Rc<Names<'c>>, RcSemverPubgrub) {
         if let Some(compat) = dep
             .pubgrub_req
             .only_one_compatibility_range()
@@ -211,12 +213,12 @@ impl<'c> Index<'c> {
         {
             (
                 new_bucket(dep.package_name.as_str(), compat, false),
-                (*dep.pubgrub_req).clone(),
+                RcSemverPubgrub::new((*dep.pubgrub_req).clone()),
             )
         } else {
             (
                 new_wide(dep.package_name.as_str(), &dep.req, from, compat.into()),
-                SemverPubgrub::full(),
+                RcSemverPubgrub::full(),
             )
         }
     }
@@ -468,9 +470,9 @@ impl std::fmt::Display for SomeError {
 impl Error for SomeError {}
 
 fn deps_insert<'c>(
-    deps: &mut DependencyConstraints<Rc<Names<'c>>, SemverPubgrub>,
+    deps: &mut DependencyConstraints<Rc<Names<'c>>, RcSemverPubgrub>,
     n: Rc<Names<'c>>,
-    r: SemverPubgrub,
+    r: RcSemverPubgrub,
 ) {
     deps.entry(n)
         .and_modify(|old_r| *old_r = old_r.intersection(&r))
@@ -482,18 +484,18 @@ impl<'c> DependencyProvider for Index<'c> {
 
     type V = semver::Version;
 
-    type VS = SemverPubgrub;
+    type VS = RcSemverPubgrub;
 
     type M = String;
     type Err = SomeError;
     fn choose_version(
         &self,
         package: &Rc<Names>,
-        range: &SemverPubgrub,
+        range: &RcSemverPubgrub,
     ) -> Result<Option<semver::Version>, Self::Err> {
         Ok(match &**package {
             Names::Links(_name) => {
-                let Some((_, Bound::Included(v))) = range.bounding_range() else {
+                let Some((_, Bound::Included(v))) = range.inner.bounding_range() else {
                     return Err(SomeError);
                 };
                 Some(v.clone())
@@ -520,7 +522,7 @@ impl<'c> DependencyProvider for Index<'c> {
 
     type Priority = Reverse<usize>;
 
-    fn prioritize(&self, package: &Rc<Names>, range: &SemverPubgrub) -> Self::Priority {
+    fn prioritize(&self, package: &Rc<Names>, range: &RcSemverPubgrub) -> Self::Priority {
         Reverse(match &**package {
             Names::Links(_name) => {
                 // PubGrub automatically handles when any requirement has no overlap. So this is only deciding a importance of picking the version:
@@ -575,7 +577,7 @@ impl<'c> DependencyProvider for Index<'c> {
                         state.finish()
                     };
                     let ver = semver::Version::new(index_unique_to_each_crate_version, 0, 0);
-                    deps.insert(new_links(link), SemverPubgrub::singleton(ver));
+                    deps.insert(new_links(link), RcSemverPubgrub::singleton(ver));
                 }
                 for dep in index_ver.deps.iter() {
                     if dep.kind == DependencyKind::Dev && !all_features {
@@ -610,7 +612,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                     deps_insert(
                                         &mut deps,
                                         cray.with_features(FeatureNamespace::new(dep_feat)),
-                                        req_range.clone(),
+                                        req_range,
                                     );
                                 }
                             }
@@ -632,7 +634,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
                     new_bucket(name, version.into(), false),
-                    SemverPubgrub::singleton(version.clone()),
+                    RcSemverPubgrub::singleton(version.clone()),
                 );
 
                 if let Some(vals) = index_ver.features.get(*feat) {
@@ -652,7 +654,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                     deps_insert(
                                         &mut deps,
                                         package.with_features(FeatureNamespace::Dep(dep_name)),
-                                        SemverPubgrub::singleton(version.clone()),
+                                        RcSemverPubgrub::singleton(version.clone()),
                                     );
 
                                     if !week
@@ -662,21 +664,21 @@ impl<'c> DependencyProvider for Index<'c> {
                                         deps_insert(
                                             &mut deps,
                                             package.with_features(FeatureNamespace::Feat(dep_name)),
-                                            SemverPubgrub::singleton(version.clone()),
+                                            RcSemverPubgrub::singleton(version.clone()),
                                         );
                                     }
                                 }
                                 deps_insert(
                                     &mut deps,
                                     cray.with_features(FeatureNamespace::Feat(dep_feat)),
-                                    req_range.clone(),
+                                    req_range,
                                 );
                             }
                         } else {
                             deps_insert(
                                 &mut deps,
                                 package.with_features(FeatureNamespace::new(val)),
-                                SemverPubgrub::singleton(version.clone()),
+                                RcSemverPubgrub::singleton(version.clone()),
                             );
                         }
                     }
@@ -690,7 +692,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 deps_insert(
                     &mut deps,
                     package.with_features(FeatureNamespace::Dep(feat)),
-                    SemverPubgrub::singleton(version.clone()),
+                    RcSemverPubgrub::singleton(version.clone()),
                 );
 
                 Dependencies::Available(deps)
@@ -708,14 +710,14 @@ impl<'c> DependencyProvider for Index<'c> {
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
                     new_bucket(name, version.into(), false),
-                    SemverPubgrub::singleton(version.clone()),
+                    RcSemverPubgrub::singleton(version.clone()),
                 );
 
                 if index_ver.features.contains_key("default") {
                     deps_insert(
                         &mut deps,
                         package.with_features(FeatureNamespace::Feat("default")),
-                        SemverPubgrub::singleton(version.clone()),
+                        RcSemverPubgrub::singleton(version.clone()),
                     );
                 }
 
@@ -731,7 +733,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
                     new_bucket(name, version.into(), false),
-                    SemverPubgrub::singleton(version.clone()),
+                    RcSemverPubgrub::singleton(version.clone()),
                 );
 
                 let mut found_name = false;
@@ -770,6 +772,8 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
+                let range = RcSemverPubgrub::new(range.clone());
+
                 Dependencies::Available(DependencyConstraints::from_iter([(
                     new_bucket(name, compatibility, false),
                     range,
@@ -780,10 +784,11 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
+                let range = RcSemverPubgrub::new(range.clone());
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
                         new_wide(name, req, parent, parent_com.clone()),
-                        SemverPubgrub::singleton(version.clone()),
+                        RcSemverPubgrub::singleton(version.clone()),
                     ),
                     (
                         new_bucket(name, compatibility, false).with_features(*feat),
@@ -796,10 +801,12 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
+                let range = RcSemverPubgrub::new(range.clone());
+
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
                         new_wide(name, req, parent, parent_com.clone()),
-                        SemverPubgrub::singleton(version.clone()),
+                        RcSemverPubgrub::singleton(version.clone()),
                     ),
                     (
                         new_bucket(name, compatibility, false).with_default_features(),
