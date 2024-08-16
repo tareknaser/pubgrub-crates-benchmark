@@ -135,6 +135,10 @@ impl DependencyList {
     {
         self.deps.get(name).map(|v| v.as_slice()).unwrap_or(&[])
     }
+
+    pub fn len(&self) -> usize {
+        self.deps.len()
+    }
 }
 
 impl<'da> From<Vec<RawIndexDependency<'da>>> for DependencyList {
@@ -198,6 +202,66 @@ pub struct Version {
     pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
     pub links: Option<InternedString>,
     pub yanked: bool,
+}
+
+#[cfg(test)]
+impl Version {
+    pub(crate) fn without_features(self) -> Option<Self> {
+        if !self.features.is_empty() {
+            Some(Self {
+                features: Intern::new(Default::default()),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_a_feature(self, i: usize) -> Option<Self> {
+        if !self.features.is_empty() {
+            Some(Self {
+                features: Intern::new(
+                    self.features
+                        .iter()
+                        .enumerate()
+                        .filter(|(v, _)| v != &i)
+                        .map(|(_, (f, d))| (f.clone(), d.clone()))
+                        .collect(),
+                ),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_deps(self) -> Option<Self> {
+        if !self.deps.deps.is_empty() {
+            Some(Self {
+                deps: DependencyList::default(),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_a_dep(self, i: usize) -> Option<Self> {
+        if !self.deps.deps.is_empty() {
+            Some(Self {
+                deps: DependencyList {
+                    deps: self
+                        .deps
+                        .deps
+                        .iter()
+                        .enumerate()
+                        .filter(|(v, _)| v != &i)
+                        .map(|(_, (f, d))| (f.clone(), d.clone()))
+                        .collect(),
+                },
+                ..self
+            })
+        } else {
+            None
+        }
+    }
 }
 
 impl<'da> From<RawIndexVersion<'da>> for Version {

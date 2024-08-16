@@ -3,9 +3,9 @@ use std::{sync::mpsc, thread::spawn, time::Instant};
 use cargo::core::Summary;
 use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
 use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
-use read_index::read_index;
-
-use benchmark_from_crates::{index_data, process_carte_version, read_index, Index, OutPutSummery};
+use benchmark_from_crates::{
+    index_data, process_carte_version, read_index::read_index, Index, OutPutSummery,
+};
 
 fn main() {
     let create_filter = |name: &str| !name.contains("solana");
