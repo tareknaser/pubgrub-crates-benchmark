@@ -31,8 +31,27 @@ pub fn read_index(
             (name, ver_lookup)
         })
         .collect();
+
+    // Create a csv file to store crates that failed to convert to Summary
+    let mut failed_crates = csv::Writer::from_path("failed_crates.csv").unwrap();
+    failed_crates
+        .serialize(("crate_name", "version", "error"))
+        .unwrap();
+
     let cargo_deps = crates
         .iter()
+        .filter(|(_, vs)| {
+            vs.iter().any(|(_, v)| {
+                let s = Summary::try_from(v);
+                if let Err(e) = s {
+                    failed_crates
+                        .serialize((v.name, v.vers, e.to_string()))
+                        .unwrap();
+                }
+                // We can just ignore everything else and return
+                false
+            })
+        })
         .map(|(n, vs)| {
             (
                 n.clone(),
@@ -42,6 +61,9 @@ pub fn read_index(
             )
         })
         .collect();
+
+    failed_crates.flush().unwrap();
+
     println!("Done reading index");
     (crates, cargo_deps)
 }

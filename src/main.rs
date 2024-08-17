@@ -11,7 +11,7 @@ fn main() {
     let create_filter = |name: &str| !name.contains("solana");
     println!("!!!!!!!!!! Excluding Solana Crates !!!!!!!!!!");
     let version_filter =
-        |version: &index_data::Version| !version.yanked && Summary::try_from(version).is_ok();
+        |version: &index_data::Version| !version.yanked && Summary::try_from(version).is_err();
     println!("!!!!!!!!!! Excluding Yanked and Non Cargo Summary Versions !!!!!!!!!!");
 
     let index =
