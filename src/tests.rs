@@ -43,7 +43,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             return false;
         }
     }
-
+    dp.reset_time();
     let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
     let cyclic_package_dependency = &cargo_out

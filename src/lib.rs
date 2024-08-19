@@ -101,18 +101,24 @@ impl<'c> Index<'c> {
         };
 
         for (package, version) in &deps {
-            match self.get_dependencies(package, version).unwrap() {
-                Dependencies::Unavailable(s) => {
+            match self.get_dependencies(package, version) {
+                Ok(Dependencies::Available(dependencies)) => {
+                    dependency_provider
+                        .entry(package.clone())
+                        .or_default()
+                        .insert(version.clone(), Ok(dependencies));
+                }
+                Ok(Dependencies::Unavailable(s)) => {
                     dependency_provider
                         .entry(package.clone())
                         .or_default()
                         .insert(version.clone(), Err(s));
                 }
-                Dependencies::Available(dependencies) => {
+                Err(_) => {
                     dependency_provider
                         .entry(package.clone())
                         .or_default()
-                        .insert(version.clone(), Ok(dependencies));
+                        .insert(version.clone(), Err("SomeError".to_owned()));
                 }
             }
         }
@@ -561,7 +567,9 @@ impl<'c> DependencyProvider for Index<'c> {
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
             &Names::Bucket(name, _major, all_features) => {
-                let index_ver = self.get_version(name, version).unwrap();
+                let Some(index_ver) = self.get_version(name, version) else {
+                    return Err(SomeError);
+                };
                 self.dependencies
                     .borrow_mut()
                     .insert((index_ver.name, version.clone()));
@@ -622,7 +630,9 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
-                let index_ver = self.get_version(*name, version).unwrap();
+                let Some(index_ver) = self.get_version(*name, version) else {
+                    return Err(SomeError);
+                };
                 self.dependencies
                     .borrow_mut()
                     .insert((index_ver.name, version.clone()));
@@ -698,7 +708,9 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketDefaultFeatures(name, _major) => {
-                let index_ver = self.get_version(*name, version).unwrap();
+                let Some(index_ver) = self.get_version(*name, version) else {
+                    return Err(SomeError);
+                };
                 self.dependencies
                     .borrow_mut()
                     .insert((index_ver.name, version.clone()));
@@ -724,7 +736,9 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Dep(feat)) => {
-                let index_ver = self.get_version(*name, version).unwrap();
+                let Some(index_ver) = self.get_version(*name, version) else {
+                    return Err(SomeError);
+                };
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable(
                         "yanked: BucketFeatures Dep".into(),
