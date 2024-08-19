@@ -13,6 +13,7 @@ use std::{
 
 use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::DependencyKind;
+use either::Either;
 use hasher::StableHasher;
 use itertools::Itertools as _;
 use names::{new_bucket, new_links, new_wide, FeatureNamespace, Names};
@@ -46,7 +47,7 @@ const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 pub struct Index<'c> {
     crates: &'c HashMap<InternedString, BTreeMap<semver::Version, index_data::Version>>,
     cargo_crates: &'c HashMap<InternedString, BTreeMap<semver::Version, Summary>>,
-    past_result: Option<HashMap<InternedString, HashSet<semver::Version>>>,
+    past_result: Option<HashMap<InternedString, BTreeSet<semver::Version>>>,
     dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
     pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
@@ -162,26 +163,29 @@ impl<'c> Index<'c> {
         file.flush().unwrap();
     }
 
-    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &'c semver::Version> + '_
+    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &semver::Version> + '_
     where
         Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
     {
-        let past = self.past_result.as_ref().map(|p| p.get(name));
-        self.crates
-            .get(name)
-            .into_iter()
-            .flat_map(|m| m.keys())
-            .rev()
-            .filter(move |&v| {
-                let Some(past) = past else {
-                    return true;
-                };
-                let Some(past) = past else {
-                    return false;
-                };
-                past.contains(v)
-            })
+        if let Some(past) = self.past_result.as_ref() {
+            let data = self.crates.get(name);
+            Either::Left(
+                past.get(name)
+                    .into_iter()
+                    .flat_map(|m| m.iter())
+                    .rev()
+                    .filter(move |v| data.map_or(false, |d| d.contains_key(v))),
+            )
+        } else {
+            Either::Right(
+                self.crates
+                    .get(name)
+                    .into_iter()
+                    .flat_map(|m| m.keys())
+                    .rev(),
+            )
+        }
     }
 
     fn get_version<Q>(&self, name: &Q, ver: &semver::Version) -> Option<&'c index_data::Version>
@@ -209,6 +213,44 @@ impl<'c> Index<'c> {
             None
         } else {
             Some(first)
+        }
+    }
+
+    fn count_wide_matches<Q>(
+        &self,
+        range: &RcSemverPubgrub,
+        package: &Q,
+        req: &&semver::VersionReq,
+    ) -> usize
+    where
+        Q: ?Sized + Hash + Eq,
+        InternedString: std::borrow::Borrow<Q>,
+    {
+        if range.inner.only_one_compatibility_range().is_some() {
+            1
+        } else {
+            // one version for each bucket that match req
+            self.get_versions(package)
+                .filter(|v| req.matches(v))
+                .map(|v| SemverCompatibility::from(v))
+                .dedup()
+                .map(|v| v.canonical())
+                .filter(|v| range.contains(v))
+                .count()
+        }
+    }
+
+    fn count_matches<Q>(&self, range: &RcSemverPubgrub, package: &Q) -> usize
+    where
+        Q: ?Sized + Hash + Eq,
+        InternedString: std::borrow::Borrow<Q>,
+    {
+        if range.inner.as_singleton().is_some() {
+            1
+        } else {
+            self.get_versions(package)
+                .filter(|v| range.contains(v))
+                .count()
         }
     }
 
@@ -547,19 +589,9 @@ impl<'c> DependencyProvider for Index<'c> {
             }
 
             Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
-                // one version for each bucket that match req
-                self.get_versions(&*package.crate_())
-                    .filter(|v| req.matches(v))
-                    .map(|v| SemverCompatibility::from(v))
-                    .dedup()
-                    .map(|v| v.canonical())
-                    .filter(|v| range.contains(v))
-                    .count()
+                self.count_wide_matches(range, &*package.crate_(), req)
             }
-            _ => self
-                .get_versions(&*package.crate_())
-                .filter(|v| range.contains(v))
-                .count(),
+            _ => self.count_matches(range, &*package.crate_()),
         })
     }
 
@@ -904,7 +936,8 @@ pub fn process_carte_version<'c>(
         dp.past_result = res
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                    HashMap::new();
                 for (k, v) in map.iter() {
                     if k.is_real() {
                         results
@@ -936,7 +969,8 @@ pub fn process_carte_version<'c>(
         dp.past_result = cargo_out
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                    HashMap::new();
                 for v in map.iter() {
                     results
                         .entry(v.name())

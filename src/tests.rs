@@ -63,7 +63,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         dp.past_result = res
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> = HashMap::new();
                 for (k, v) in map.iter() {
                     if k.is_real() {
                         results
@@ -91,7 +91,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         dp.past_result = cargo_out
             .as_ref()
             .map(|map| {
-                let mut results: HashMap<InternedString, HashSet<semver::Version>> = HashMap::new();
+                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> = HashMap::new();
                 for v in map.iter() {
                     results
                         .entry(v.name())

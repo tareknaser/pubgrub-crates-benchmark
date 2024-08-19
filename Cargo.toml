@@ -21,3 +21,4 @@ cargo = {git="https://github.com/Eh2406/cargo.git", branch="wrap_is_not_cheap"}
 tikv-jemallocator = "0.5"
 anyhow = "1.0.86"
 indexmap = "2.2.6"
+either = "1.13.0"

@@ -150,6 +150,7 @@ dependencies = [
  "cargo",
  "crates-index",
  "csv",
+ "either",
  "indexmap",
  "indicatif",
  "internment",
