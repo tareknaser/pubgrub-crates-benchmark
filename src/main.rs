@@ -1,13 +1,14 @@
 use std::{sync::mpsc, thread::spawn, time::Instant};
 
-use cargo::core::Summary;
-use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
-use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
 use benchmark_from_crates::{
     index_data, process_carte_version, read_index::read_index, Index, OutPutSummery,
 };
+use cargo::core::Summary;
+use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
+use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
 
 fn main() {
+    println!("Running on {} rayon threads.", rayon::current_num_threads());
     let create_filter = |name: &str| !name.contains("solana");
     println!("!!!!!!!!!! Excluding Solana Crates !!!!!!!!!!");
     let version_filter =

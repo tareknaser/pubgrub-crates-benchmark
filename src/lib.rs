@@ -50,7 +50,7 @@ pub struct Index<'c> {
     dependencies: RefCell<HashSet<(InternedString, semver::Version)>>,
     pubgrub_dependencies: RefCell<HashSet<(Rc<Names<'c>>, semver::Version)>>,
     start: Cell<Instant>,
-    call_count: Cell<u64>,
+    should_cancel_call_count: Cell<u64>,
 }
 
 impl<'c> Index<'c> {
@@ -65,18 +65,19 @@ impl<'c> Index<'c> {
             pubgrub_dependencies: Default::default(),
             dependencies: Default::default(),
             start: Cell::new(Instant::now()),
-            call_count: Cell::new(0),
+            should_cancel_call_count: Cell::new(0),
         }
-    }
-
-    fn reset_time(&mut self) {
-        *self.start.get_mut() = Instant::now();
     }
 
     fn reset(&mut self) {
         self.past_result = None;
         self.dependencies.get_mut().clear();
         self.pubgrub_dependencies.get_mut().clear();
+        self.reset_time();
+    }
+
+    fn reset_time(&mut self) {
+        *self.should_cancel_call_count.get_mut() = 0;
         *self.start.get_mut() = Instant::now();
     }
 
@@ -84,6 +85,11 @@ impl<'c> Index<'c> {
         self.start.get().elapsed().as_secs_f32()
     }
 
+    fn should_cancel_call_count(&self) -> u64 {
+        self.should_cancel_call_count.get()
+    }
+
+    #[cfg(test)]
     fn make_pubgrub_ron_file(&self) {
         let mut dependency_provider: BTreeMap<_, BTreeMap<_, Result<_, _>>> = BTreeMap::new();
         let deps = self
@@ -833,8 +839,8 @@ impl<'c> DependencyProvider for Index<'c> {
     }
 
     fn should_cancel(&self) -> Result<(), Self::Err> {
-        let calls = self.call_count.get();
-        self.call_count.set(calls + 1);
+        let calls = self.should_cancel_call_count.get();
+        self.should_cancel_call_count.set(calls + 1);
         if calls % 64 == 0 && TIME_CUT_OFF < self.start.get().elapsed().as_secs_f32() {
             return Err(SomeError);
         }
@@ -856,24 +862,23 @@ pub fn process_carte_version<'c>(
         false
     };
     let duration = dp.duration();
+    let should_cancel_call_count = dp.should_cancel_call_count();
+    let get_dependencies_call_count = dp.pubgrub_dependencies.borrow().len();
     match res.as_ref() {
         Ok(map) => {
             if !dp.check(root.clone(), &map) {
                 dp.make_index_ron_file();
-                dp.make_pubgrub_ron_file();
                 panic!("failed check");
             }
         }
         Err(PubGrubError::NoSolution(_derivation)) => {}
         Err(e) => {
             dp.make_index_ron_file();
-            dp.make_pubgrub_ron_file();
             dbg!(e);
         }
     }
     if duration > TIME_MAKE_FILE {
         dp.make_index_ron_file();
-        dp.make_pubgrub_ron_file();
     }
 
     dp.reset_time();
@@ -894,7 +899,6 @@ pub fn process_carte_version<'c>(
         dp.make_index_ron_file();
         println!("failed to match cargo {root:?}");
     }
-    let mut cargo_check_pub_lock_res = false;
     let mut cargo_check_pub_lock_time = 0.0;
     if res.is_ok() {
         dp.past_result = res
@@ -915,7 +919,6 @@ pub fn process_carte_version<'c>(
         dp.reset_time();
         let cargo_check_pub_lock_out = cargo_resolver::resolve(crt, &ver, dp);
         cargo_check_pub_lock_time = dp.duration();
-        cargo_check_pub_lock_res = cargo_check_pub_lock_out.is_ok();
 
         let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
             .as_ref()
@@ -928,7 +931,6 @@ pub fn process_carte_version<'c>(
         }
     }
 
-    let mut pub_check_cargo_lock_res = false;
     let mut pub_check_cargo_lock_time = 0.0;
     if cargo_out.is_ok() {
         dp.past_result = cargo_out
@@ -947,7 +949,6 @@ pub fn process_carte_version<'c>(
         dp.reset_time();
         let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
         pub_check_cargo_lock_time = dp.duration();
-        pub_check_cargo_lock_res = pub_check_cargo_lock_out.is_ok();
 
         if !pub_check_cargo_lock_out.is_ok() {
             dp.make_index_ron_file();
@@ -960,19 +961,18 @@ pub fn process_carte_version<'c>(
         ver,
         time: duration,
         succeeded: res.is_ok(),
+        should_cancel_call_count,
+        get_dependencies_call_count,
         pubgrub_deps: res.as_ref().map(|r| r.len()).unwrap_or(0),
         deps: res
             .as_ref()
             .map(|r| r.iter().filter(|(v, _)| v.is_real()).count())
             .unwrap_or(0),
         cargo_time: cargo_duration,
-        cargo_res: cargo_out.is_ok(),
         cyclic_package_dependency,
         cargo_deps: cargo_out.as_ref().map(|r| r.iter().count()).unwrap_or(0),
         cargo_check_pub_lock_time,
-        cargo_check_pub_lock_res,
         pub_check_cargo_lock_time,
-        pub_check_cargo_lock_res,
     }
 }
 
@@ -982,14 +982,13 @@ pub struct OutPutSummery {
     pub ver: semver::Version,
     pub time: f32,
     pub succeeded: bool,
+    pub should_cancel_call_count: u64,
+    pub get_dependencies_call_count: usize,
     pub pubgrub_deps: usize,
     pub deps: usize,
     pub cargo_time: f32,
-    pub cargo_res: bool,
     pub cyclic_package_dependency: bool,
     pub cargo_deps: usize,
     pub cargo_check_pub_lock_time: f32,
-    pub cargo_check_pub_lock_res: bool,
     pub pub_check_cargo_lock_time: f32,
-    pub pub_check_cargo_lock_res: bool,
 }
