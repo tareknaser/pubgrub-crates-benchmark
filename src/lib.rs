@@ -730,20 +730,10 @@ impl<'c> DependencyProvider for Index<'c> {
                             );
                         }
                     }
-                    return Ok(Dependencies::Available(deps));
+                    Dependencies::Available(deps)
+                } else {
+                    Dependencies::Unavailable("no matching feat nor dep".into())
                 }
-                if index_ver.explicitly_named_deps.contains(*feat) {
-                    return Ok(Dependencies::Unavailable(
-                        "no matching feat (dep not a feat becuse of dep:)".into(),
-                    ));
-                }
-                deps_insert(
-                    &mut deps,
-                    package.with_features(FeatureNamespace::Dep(feat)),
-                    RcSemverPubgrub::singleton(version.clone()),
-                );
-
-                Dependencies::Available(deps)
             }
             Names::BucketDefaultFeatures(name, _major) => {
                 let Some(index_ver) = self.get_version(*name, version) else {

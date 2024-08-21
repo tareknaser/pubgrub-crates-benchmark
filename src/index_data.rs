@@ -198,7 +198,7 @@ pub struct Version {
     pub name: InternedString,
     pub vers: Intern<semver::Version>,
     pub deps: DependencyList,
-    pub explicitly_named_deps: BTreeSet<InternedString>,
+    pub features_raw: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
     pub features: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>>,
     pub links: Option<InternedString>,
     pub yanked: bool,
@@ -207,8 +207,9 @@ pub struct Version {
 #[cfg(test)]
 impl Version {
     pub(crate) fn without_features(self) -> Option<Self> {
-        if !self.features.is_empty() {
+        if !self.features_raw.is_empty() {
             Some(Self {
+                features_raw: Intern::new(Default::default()),
                 features: Intern::new(Default::default()),
                 ..self
             })
@@ -217,16 +218,45 @@ impl Version {
         }
     }
     pub(crate) fn without_a_feature(self, i: usize) -> Option<Self> {
-        if !self.features.is_empty() {
-            Some(Self {
-                features: Intern::new(
-                    self.features
+        if !self.features_raw.is_empty() {
+            let features_raw: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>> =
+                Intern::new(
+                    self.features_raw
                         .iter()
                         .enumerate()
                         .filter(|(v, _)| v != &i)
                         .map(|(_, (f, d))| (f.clone(), d.clone()))
                         .collect(),
-                ),
+                );
+
+            let explicitly_named_deps: BTreeSet<&str> = features_raw
+                .values()
+                .flat_map(|f| f.iter())
+                .filter_map(|f| f.strip_prefix("dep:"))
+                .collect();
+
+            let mut features: BTreeMap<_, _> = (*features_raw).clone();
+            for dep in self.deps.iter() {
+                if explicitly_named_deps.contains(dep.name.as_str()) {
+                    continue;
+                }
+                if !dep.optional {
+                    continue;
+                }
+                if dep.kind == crates_index::DependencyKind::Dev {
+                    continue;
+                }
+                features.insert(
+                    dep.name.clone(),
+                    Intern::new(BTreeSet::from_iter([InternedString::new(&format!(
+                        "dep:{}",
+                        dep.name
+                    ))])),
+                );
+            }
+            Some(Self {
+                features_raw,
+                features: features.into(),
                 ..self
             })
         } else {
@@ -266,23 +296,48 @@ impl Version {
 
 impl<'da> From<RawIndexVersion<'da>> for Version {
     fn from(value: RawIndexVersion<'da>) -> Self {
-        Self {
-            name: value.name.into(),
-            vers: value.vers.into(),
-            deps: value.deps.into(),
-            explicitly_named_deps: value
-                .features
-                .values()
-                .flat_map(|f| f.iter())
-                .filter_map(|f| f.strip_prefix("dep:"))
-                .map(|s| s.into())
-                .collect(),
-            features: value
+        let features_raw: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>> =
+            value
                 .features
                 .iter()
                 .map(|(&k, v)| (k.into(), Intern::new(v.iter().map(|&s| s.into()).collect())))
                 .collect::<BTreeMap<_, _>>()
-                .into(),
+                .into();
+
+        let explicitly_named_deps: BTreeSet<&str> = features_raw
+            .values()
+            .flat_map(|f| f.iter())
+            .filter_map(|f| f.strip_prefix("dep:"))
+            .collect();
+
+        let mut features: BTreeMap<_, _> = (*features_raw).clone();
+
+        let deps: DependencyList = value.deps.into();
+        for dep in deps.iter() {
+            if explicitly_named_deps.contains(dep.name.as_str()) {
+                continue;
+            }
+            if !dep.optional {
+                continue;
+            }
+            if dep.kind == crates_index::DependencyKind::Dev {
+                continue;
+            }
+            features.insert(
+                dep.name.clone(),
+                Intern::new(BTreeSet::from_iter([InternedString::new(&format!(
+                    "dep:{}",
+                    dep.name
+                ))])),
+            );
+        }
+
+        Self {
+            name: value.name.into(),
+            vers: value.vers.into(),
+            deps,
+            features_raw,
+            features: features.into(),
             links: value.links.map(|s| s.into()),
             yanked: value.yanked,
         }
@@ -296,7 +351,7 @@ impl Into<RawIndexVersion<'static>> for Version {
             vers: (&*self.vers).clone(),
             deps: self.deps.into(),
             features: self
-                .features
+                .features_raw
                 .iter()
                 .map(|(&k, v)| (k.as_str(), v.iter().map(|s| s.as_str()).collect()))
                 .collect(),
@@ -317,20 +372,8 @@ impl TryFrom<&crates_index::Version> for Version {
                 .push(dep.try_into()?);
         }
 
-        Ok(Version {
-            name: ver.name().into(),
-            vers: ver.version().parse::<semver::Version>()?.into(),
-            deps: DependencyList {
-                deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
-            },
-            explicitly_named_deps: ver
-                .features()
-                .values()
-                .flat_map(|f| f.iter())
-                .filter_map(|f| f.strip_prefix("dep:"))
-                .map(|s| s.into())
-                .collect(),
-            features: Intern::new(
+        let features_raw: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>> =
+            Intern::new(
                 ver.features()
                     .iter()
                     .map(|(f, ts)| {
@@ -340,7 +383,48 @@ impl TryFrom<&crates_index::Version> for Version {
                         )
                     })
                     .collect(),
-            ),
+            );
+
+        let explicitly_named_deps: BTreeSet<&str> = features_raw
+            .values()
+            .flat_map(|f| f.iter())
+            .filter_map(|f| f.strip_prefix("dep:"))
+            .collect();
+
+        let mut features: BTreeMap<_, _> = (*features_raw).clone();
+
+        for (n, n_deps) in &deps {
+            if explicitly_named_deps.contains(n.as_str()) {
+                continue;
+            }
+            let mut found_name = false;
+            for dep in n_deps {
+                if !dep.optional {
+                    continue;
+                }
+                if dep.kind == crates_index::DependencyKind::Dev {
+                    continue;
+                }
+                found_name = true;
+            }
+            if found_name {
+                features.insert(
+                    n.clone(),
+                    Intern::new(BTreeSet::from_iter([InternedString::new(&format!(
+                        "dep:{n}"
+                    ))])),
+                );
+            }
+        }
+
+        Ok(Version {
+            name: ver.name().into(),
+            vers: ver.version().parse::<semver::Version>()?.into(),
+            deps: DependencyList {
+                deps: deps.into_iter().map(|(k, v)| (k, Intern::new(v))).collect(),
+            },
+            features_raw,
+            features: features.into(),
             links: ver.links().map(|s| s.into()),
             yanked: ver.is_yanked(),
         })

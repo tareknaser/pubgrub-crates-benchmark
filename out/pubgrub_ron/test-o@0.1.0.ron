@@ -14,6 +14,6 @@
         }),
     },
     "Bucket:ureq@2.x.y/c": {
-        "2.9.7": Err("no matching feat (dep not a feat becuse of dep:)"),
+        "2.9.7": Err("no matching feat nor dep"),
     },
 }
