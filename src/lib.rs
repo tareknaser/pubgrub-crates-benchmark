@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs::File,
     hash::{Hash, Hasher},
-    io::Write,
+    io::{BufWriter, Write},
     ops::Bound,
     rc::Rc,
     time::Instant,
@@ -131,7 +131,7 @@ impl<'c> Index<'c> {
         }
 
         let file_name = format!("out/pubgrub_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let mut file = File::create(&file_name).unwrap();
+        let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &dependency_provider, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
     }
@@ -158,7 +158,7 @@ impl<'c> Index<'c> {
         let out = self.make_index_ron_data();
 
         let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let mut file = File::create(&file_name).unwrap();
+        let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
     }
